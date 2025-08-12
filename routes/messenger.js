@@ -8,11 +8,11 @@ const router = express.Router();
 // Basado en: https://developers.facebook.com/docs/messenger-platform/send-messages/
 
 // ENDPOINT: /messenger/send-message
-// Enviar mensaje de texto básico usando Messenger Platform API
+// Enviar mensaje de texto básico usando Instagram Direct Messages API
 router.post('/send-message', async (req, res) => {
     const { recipient_id, message_text, access_token, page_id } = req.body;
     
-    console.log('📨 Enviando mensaje de Messenger:', {
+    console.log(' Enviando mensaje de Instagram:', {
         recipient_id,
         message_text: message_text?.substring(0, 50) + '...',
         page_id,
@@ -45,11 +45,11 @@ router.post('/send-message', async (req, res) => {
             }
         };
         
-        console.log('📤 Payload del mensaje:', JSON.stringify(messagePayload, null, 2));
+        console.log(' Payload del mensaje:', JSON.stringify(messagePayload, null, 2));
         
-        // Enviar mensaje usando Messenger Platform API
+        // Enviar mensaje usando Instagram Direct Messages API
         const response = await axios.post(
-            `https://graph.facebook.com/v23.0/${page_id}/messages`,
+            `https://graph.instagram.com/v23.0/me/messages`,
             messagePayload,
             {
                 headers: {
@@ -61,11 +61,11 @@ router.post('/send-message', async (req, res) => {
             }
         );
         
-        console.log('✅ Mensaje enviado exitosamente:', response.data);
+        console.log(' Mensaje enviado exitosamente:', response.data);
         
         res.json({
             success: true,
-            message: 'Mensaje enviado exitosamente via Messenger Platform API',
+            message: 'Mensaje enviado exitosamente via Instagram Direct Messages API',
             response_data: response.data,
             recipient_id: response.data.recipient_id,
             message_id: response.data.message_id,
@@ -73,7 +73,7 @@ router.post('/send-message', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Error enviando mensaje de Messenger:', {
+        console.error(' Error enviando mensaje de Instagram:', {
             status: error.response?.status,
             statusText: error.response?.statusText,
             data: error.response?.data,
@@ -82,7 +82,7 @@ router.post('/send-message', async (req, res) => {
         
         res.status(500).json({
             success: false,
-            error: 'Error enviando mensaje via Messenger Platform API',
+            error: 'Error enviando mensaje via Instagram Direct Messages API',
             details: {
                 status: error.response?.status,
                 statusText: error.response?.statusText,
@@ -95,11 +95,11 @@ router.post('/send-message', async (req, res) => {
 });
 
 // ENDPOINT: /messenger/send-image
-// Enviar imagen usando Messenger Platform API
+// Enviar imagen usando Instagram Direct Messages API
 router.post('/send-image', async (req, res) => {
     const { recipient_id, image_url, access_token, page_id } = req.body;
     
-    console.log('🖼️ Enviando imagen de Messenger:', {
+    console.log(' Enviando imagen de Instagram:', {
         recipient_id,
         image_url,
         page_id,
@@ -130,10 +130,10 @@ router.post('/send-image', async (req, res) => {
             }
         };
         
-        console.log('📤 Payload de imagen:', JSON.stringify(messagePayload, null, 2));
+        console.log(' Payload de imagen:', JSON.stringify(messagePayload, null, 2));
         
         const response = await axios.post(
-            `https://graph.facebook.com/v23.0/${page_id}/messages`,
+            `https://graph.instagram.com/v23.0/me/messages`,
             messagePayload,
             {
                 headers: {
@@ -145,11 +145,11 @@ router.post('/send-image', async (req, res) => {
             }
         );
         
-        console.log('✅ Imagen enviada exitosamente:', response.data);
+        console.log(' Imagen enviada exitosamente:', response.data);
         
         res.json({
             success: true,
-            message: 'Imagen enviada exitosamente via Messenger Platform API',
+            message: 'Imagen enviada exitosamente via Instagram Direct Messages API',
             response_data: response.data,
             recipient_id: response.data.recipient_id,
             message_id: response.data.message_id,
@@ -157,11 +157,11 @@ router.post('/send-image', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Error enviando imagen de Messenger:', error.response?.data || error.message);
+        console.error(' Error enviando imagen de Instagram:', error.response?.data || error.message);
         
         res.status(500).json({
             success: false,
-            error: 'Error enviando imagen via Messenger Platform API',
+            error: 'Error enviando imagen via Instagram Direct Messages API',
             details: error.response?.data || error.message,
             timestamp: new Date().toISOString()
         });
@@ -177,7 +177,7 @@ router.get('/test', (req, res) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Messenger Platform API - Pruebas</title>
+    <title>Instagram Direct Messages API - Pruebas</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -286,17 +286,17 @@ router.get('/test', (req, res) => {
 </head>
 <body>
     <div class="container">
-        <h1>📨 Messenger Platform API - Pruebas</h1>
+        <h1> Instagram Direct Messages API - Pruebas</h1>
         
         <div class="info-box">
-            <h3>ℹ️ Información Importante</h3>
+            <h3> Información Importante</h3>
             <p><strong>Para usar esta herramienta necesitas:</strong></p>
             <ul>
-                <li><strong>Access Token:</strong> Token obtenido del Instagram/Facebook Login</li>
-                <li><strong>Page ID:</strong> ID de tu página de Facebook conectada a Instagram</li>
+                <li><strong>Access Token:</strong> Token obtenido del Instagram Login</li>
+                <li><strong>Page ID:</strong> ID de tu página de Instagram</li>
                 <li><strong>Recipient ID (PSID):</strong> ID específico de la página del destinatario</li>
             </ul>
-            <p><small>💡 El PSID se obtiene cuando alguien envía un mensaje a tu página primero.</small></p>
+            <p><small> El PSID se obtiene cuando alguien envía un mensaje a tu página primero.</small></p>
         </div>
 
         <form id="messageForm">
@@ -309,7 +309,7 @@ router.get('/test', (req, res) => {
             <div class="form-group">
                 <label for="page_id">Page ID:</label>
                 <input type="text" id="page_id" name="page_id" 
-                       placeholder="ID de tu página de Facebook (ej: 122111317922944356)" required>
+                       placeholder="ID de tu página de Instagram (ej: 122111317922944356)" required>
             </div>
             
             <div class="form-group">
@@ -325,12 +325,12 @@ router.get('/test', (req, res) => {
             </div>
             
             <button type="button" class="btn" onclick="sendTextMessage()">
-                📨 Enviar Mensaje de Texto
+                Enviar Mensaje de Texto
             </button>
         </form>
 
         <form id="imageForm" style="margin-top: 30px;">
-            <h3>🖼️ Enviar Imagen</h3>
+            <h3> Enviar Imagen</h3>
             <div class="form-group">
                 <label for="image_url">URL de la Imagen:</label>
                 <input type="url" id="image_url" name="image_url" 
@@ -338,7 +338,7 @@ router.get('/test', (req, res) => {
             </div>
             
             <button type="button" class="btn btn-image" onclick="sendImageMessage()">
-                🖼️ Enviar Imagen
+                Enviar Imagen
             </button>
         </form>
 
@@ -413,7 +413,7 @@ router.get('/test', (req, res) => {
         function showLoading() {
             const results = document.getElementById('results');
             results.style.display = 'block';
-            results.innerHTML = '<p>⏳ Enviando mensaje...</p>';
+            results.innerHTML = '<p> Enviando mensaje...</p>';
         }
         
         function showResults(data, success) {
@@ -421,7 +421,7 @@ router.get('/test', (req, res) => {
             results.style.display = 'block';
             
             const statusClass = success ? 'success' : 'error';
-            const statusIcon = success ? '✅' : '❌';
+            const statusIcon = success ? ' ' : ' ';
             const statusText = success ? 'Mensaje Enviado Exitosamente' : 'Error al Enviar Mensaje';
             
             results.innerHTML = \`
