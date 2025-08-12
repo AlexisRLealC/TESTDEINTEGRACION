@@ -1,0 +1,55 @@
+# Archivos del sistema Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Archivos de VS Code
+.vscode/
+
+# Archivos de entorno
+.env
+.env.*
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Directorios de dependencias Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Archivos temporales y de backup
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*.swn
+
+# Salidas de compilación
+dist/
+build/
+out/
+
+# Archivos de logs
+*.log
+
+# Archivos de prueba
+coverage/
+*.cover
+*.lcov
+
+# Otros
+.DS_Store
+.idea/
+*.sublime-workspace
+*.sublime-project
+*.iml
