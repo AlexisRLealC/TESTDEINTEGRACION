@@ -181,70 +181,26 @@ const launchWhatsAppSignup = () => {
 };
 
 // ===================================================================
-// INSTAGRAM LOGIN - Instagram API with Facebook Login (Oficial)
+// INSTAGRAM LOGIN - Instagram Business Login (Directo)
 // ===================================================================
-// Implementación basada en la documentación oficial de Meta:
-// https://developers.facebook.com/docs/instagram-platform/instagram-api-with-facebook-login
-// https://developers.facebook.com/docs/instagram-platform/instagram-api-with-facebook-login/business-login-for-instagram
-const launchInstagramLogin = () => {
-    console.log('📸 Iniciando Instagram API with Facebook Login...');
+// Implementación actualizada para usar Instagram Business Login directo
+// https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/business-login
+function launchInstagramLogin() {
+    console.log('📸 Iniciando Instagram Business Login (Directo)...');
     
-    // Verificar configuración
-    const instagramAppId = window.APP_CONFIG.INSTAGRAM_APP_ID;
-    if (!instagramAppId) {
-        alert('⚠️ Instagram no está configurado. Configura INSTAGRAM_APP_ID en .env');
+    if (!window.APP_CONFIG.INSTAGRAM_APP_ID) {
+        alert('❌ Error: INSTAGRAM_APP_ID no configurado en el servidor');
         return;
     }
     
-    // Generar state único para rastrear la sesión
+    // Generar estado único para seguridad
     const state = 'ig_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     
-    // ===================================================================
-    // PERMISOS COMPLETOS PARA PRODUCCIÓN - Instagram API with Facebook Login
-    // ===================================================================
-    // Documentación: https://developers.facebook.com/docs/instagram-platform/instagram-api-with-facebook-login
-    // IMPORTANTE: Estos permisos requieren App Review para funcionar con cuentas de terceros
-    
-    const permissions = [
-        // PERMISOS BÁSICOS (Automáticos - No requieren App Review)
-        'public_profile',                    // Perfil público del usuario
-        'email',                            // Email del usuario
-        
-        // PERMISOS ESTÁNDAR (Requieren App Review)
-        'pages_show_list',                  // Listar páginas de Facebook del usuario
-        'pages_read_engagement',            // Leer métricas de interacción de páginas
-        'pages_manage_metadata',            // Gestionar metadatos de páginas
-        'pages_messaging',                  // Enviar mensajes desde páginas
-        
-        // PERMISOS DE INSTAGRAM BUSINESS (Requieren App Review)
-        'instagram_basic',                  // Acceso básico a perfil de Instagram Business
-        'instagram_content_publish',        // Publicar contenido en Instagram
-        'instagram_manage_comments',        // Gestionar comentarios de Instagram
-        'instagram_manage_insights',        // Acceso a métricas e insights de Instagram
-        'instagram_manage_messages',        // Enviar y recibir mensajes directos de Instagram
-        
-        // PERMISOS DE GESTIÓN COMERCIAL (Requieren App Review)
-        'business_management',              // Gestión de activos comerciales
-        'ads_management',                   // Gestión de anuncios (opcional)
-        'leads_retrieval'                   // Recuperación de leads (opcional)
-    ];
-    
-    // NOTA: Para testing durante desarrollo, comentar los permisos avanzados
-    // y usar solo: ['public_profile', 'email', 'pages_show_list']
-    
-    // URL de autorización según documentación oficial
-    const redirectUri = encodeURIComponent(window.APP_CONFIG.INSTAGRAM_REDIRECT_URI);
-    const scope = permissions.join(',');
-    
-    // Usar Facebook Login Dialog (método recomendado)
-    const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${instagramAppId}&redirect_uri=${redirectUri}&state=${state}&scope=${scope}&response_type=code&display=popup`;
-    
-    console.log('🔗 Iniciando Facebook Login Dialog:', {
-        app_id: instagramAppId,
+    console.log('🔗 Configuración de Instagram Business Login:', {
+        app_id: window.APP_CONFIG.INSTAGRAM_APP_ID,
         redirect_uri: window.APP_CONFIG.INSTAGRAM_REDIRECT_URI,
         state: state,
-        permissions: permissions,
-        api_version: 'v19.0'
+        method: 'Instagram Business Login (Direct)'
     });
     
     // Mostrar información del proceso
@@ -252,35 +208,93 @@ const launchInstagramLogin = () => {
     resultsDiv.style.display = 'block';
     resultsDiv.innerHTML = `
         <div class="info-box">
-            <h3>📸 Instagram API with Facebook Login</h3>
-            <p>Iniciando proceso de autorización oficial de Meta...</p>
-            <p><strong>Flujo:</strong> Instagram API with Facebook Login</p>
-            <p><strong>Versión API:</strong> Graph API v19.0</p>
+            <h3>📸 Instagram Business Login (Directo)</h3>
+            <p>Iniciando proceso de autorización oficial de Instagram...</p>
+            <p><strong>Flujo:</strong> Instagram API with Instagram Login</p>
+            <p><strong>Método:</strong> Business Login for Instagram</p>
+            <p><strong>Endpoint:</strong> instagram.com/oauth/authorize</p>
             
-            <h4>🔐 Permisos Solicitados:</h4>
+            <h4>🔐 Permisos Solicitados (Nuevos Scopes 2025):</h4>
             <ul style="text-align: left;">
-                <li><strong>instagram_basic:</strong> Acceso básico al perfil</li>
-                <li><strong>instagram_content_publish:</strong> Publicar contenido</li>
-                <li><strong>instagram_manage_comments:</strong> Gestionar comentarios</li>
-                <li><strong>instagram_manage_insights:</strong> Acceso a métricas</li>
-                <li><strong>pages_show_list:</strong> Listar páginas de Facebook</li>
-                <li><strong>pages_read_engagement:</strong> Leer interacciones</li>
-                <li><strong>business_management:</strong> Gestión comercial</li>
+                <li><strong>instagram_business_basic:</strong> Acceso básico al perfil comercial</li>
+                <li><strong>instagram_business_content_publish:</strong> Publicar contenido</li>
+                <li><strong>instagram_business_manage_messages:</strong> Gestionar mensajes</li>
+                <li><strong>instagram_business_manage_comments:</strong> Gestionar comentarios</li>
             </ul>
             
-            <div style="background: #e7f3ff; padding: 10px; border-radius: 5px; margin: 10px 0;">
+            <div style="background: #d1ecf1; padding: 10px; border-radius: 5px; margin: 10px 0; color: #0c5460;">
+                <p><strong>✨ Nuevo:</strong> Instagram Login Directo en Popup</p>
                 <p><strong>📋 Estado de la Sesión:</strong> ${state}</p>
-                <p><strong>🔄 Redirigiendo...</strong> Si no se redirige automáticamente, 
-                <a href="${authUrl}" target="_blank" style="color: #007bff;">haz clic aquí</a></p>
+                <p><strong>🪟 Abriendo ventana...</strong> Se abrirá una ventana pequeña para la autorización</p>
+                <p><strong>🔄 Forzar login:</strong> Siempre pedirá credenciales de Instagram</p>
+            </div>
+            
+            <div style="background: #fff3cd; padding: 10px; border-radius: 5px; margin: 10px 0; color: #856404;">
+                <p><strong>⚠️ Nota:</strong> Si no se abre la ventana popup, verifica que no esté bloqueada por tu navegador.</p>
+                <p><strong>🔒 Seguridad:</strong> La ventana se cerrará automáticamente al completar la autorización.</p>
             </div>
         </div>
     `;
     
-    // Redirigir al usuario al Facebook Login Dialog
+    // URL del endpoint de Instagram con force_reauth para siempre pedir login
+    const authUrl = `/instagram/login?force_reauth=true&state=${state}`;
+    
+    // Configuración de la ventana popup
+    const popupFeatures = [
+        'width=500',           // Ancho de la ventana
+        'height=700',          // Alto de la ventana
+        'left=' + (screen.width / 2 - 250),   // Centrar horizontalmente
+        'top=' + (screen.height / 2 - 350),   // Centrar verticalmente
+        'scrollbars=yes',      // Permitir scroll si es necesario
+        'resizable=yes',       // Permitir redimensionar
+        'status=no',           // Sin barra de estado
+        'toolbar=no',          // Sin barra de herramientas
+        'menubar=no',          // Sin barra de menú
+        'location=no'          // Sin barra de dirección
+    ].join(',');
+    
+    console.log('🪟 Abriendo popup de Instagram Login:', {
+        url: authUrl,
+        features: popupFeatures
+    });
+    
+    // Abrir ventana popup
+    const popup = window.open(authUrl, 'instagram_login', popupFeatures);
+    
+    // Verificar si la ventana se abrió correctamente
+    if (!popup) {
+        alert('❌ Error: No se pudo abrir la ventana popup. Verifica que no esté bloqueada por tu navegador.');
+        return;
+    }
+    
+    // Enfocar la ventana popup
+    popup.focus();
+    
+    // Monitorear el estado de la ventana popup
+    const checkClosed = setInterval(() => {
+        if (popup.closed) {
+            clearInterval(checkClosed);
+            console.log('🪟 Ventana popup cerrada');
+            
+            // Actualizar la UI para mostrar que se cerró la ventana
+            const statusDiv = resultsDiv.querySelector('.info-box');
+            if (statusDiv) {
+                statusDiv.innerHTML += `
+                    <div style="background: #f8d7da; padding: 10px; border-radius: 5px; margin: 10px 0; color: #721c24;">
+                        <p><strong>🪟 Ventana cerrada</strong></p>
+                        <p>Si completaste la autorización, la página se actualizará automáticamente.</p>
+                        <p>Si cancelaste, puedes intentar de nuevo haciendo clic en el botón.</p>
+                    </div>
+                `;
+            }
+        }
+    }, 1000);
+    
+    // Timeout de seguridad para limpiar el interval después de 10 minutos
     setTimeout(() => {
-        window.location.href = authUrl;
-    }, 1500); // Pequeña pausa para mostrar la información
-};
+        clearInterval(checkClosed);
+    }, 600000); // 10 minutos
+}
 
 // Función de verificación de estado
 function checkStatus() {

@@ -1,5 +1,6 @@
 const express = require('express');
 const axios = require('axios');
+const instagramIdHelper = require('./instagram-id-helper');
 const router = express.Router();
 
 // ===================================================================
@@ -12,18 +13,27 @@ const router = express.Router();
 router.post('/send-message', async (req, res) => {
     const { recipient_id, message_text, access_token, page_id } = req.body;
     
+    // OBTENER ID CORRECTO PARA MENSAJERÍA
+    const correctPageId = instagramIdHelper.getCorrectMessagingId();
+    const idInfo = instagramIdHelper.getIdInfo();
+    
     console.log(' Enviando mensaje de Instagram:', {
         recipient_id,
         message_text: message_text?.substring(0, 50) + '...',
-        page_id,
+        page_id_original: page_id,
+        page_id_correcto: correctPageId,
+        usando_id_de_webhook: instagramIdHelper.hasCorrectId(),
         access_token_length: access_token?.length
     });
     
+    // Mostrar información del ID Helper
+    console.log(' Estado del ID Helper:', idInfo);
+    
     // Validar parámetros requeridos
-    if (!recipient_id || !message_text || !access_token || !page_id) {
+    if (!recipient_id || !message_text || !access_token) {
         return res.status(400).json({
             success: false,
-            error: 'Parámetros requeridos: recipient_id, message_text, access_token, page_id',
+            error: 'Parámetros requeridos: recipient_id, message_text, access_token',
             received: {
                 recipient_id: !!recipient_id,
                 message_text: !!message_text,
@@ -47,9 +57,16 @@ router.post('/send-message', async (req, res) => {
         
         console.log(' Payload del mensaje:', JSON.stringify(messagePayload, null, 2));
         
+        // USAR ID CORRECTO PARA EL ENDPOINT
+        const endpointPageId = correctPageId || page_id;
+        const apiUrl = `https://graph.instagram.com/v23.0/${endpointPageId}/messages`;
+        
+        console.log(` URL del API: ${apiUrl}`);
+        console.log(` Usando Page ID: ${endpointPageId} (${instagramIdHelper.hasCorrectId() ? 'de webhook' : 'de parámetro'})`);
+        
         // Enviar mensaje usando Instagram Direct Messages API
         const response = await axios.post(
-            `https://graph.instagram.com/v23.0/me/messages`,
+            apiUrl,
             messagePayload,
             {
                 headers: {
@@ -69,6 +86,8 @@ router.post('/send-message', async (req, res) => {
             response_data: response.data,
             recipient_id: response.data.recipient_id,
             message_id: response.data.message_id,
+            page_id_usado: endpointPageId,
+            id_source: instagramIdHelper.hasCorrectId() ? 'webhook' : 'parametro',
             sent_at: new Date().toISOString()
         });
         
