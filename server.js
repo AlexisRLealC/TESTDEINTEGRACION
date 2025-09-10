@@ -1,85 +1,237 @@
 // ===================================================================
-// WHATSAPP EMBEDDED SIGNUP - IMPLEMENTACIÓN OFICIAL CON FACEBOOK SDK
+// WHATSAPP INTEGRATION PLATFORM - MVP SERVER
 // ===================================================================
-// Basado en: https://developers.facebook.com/docs/whatsapp/embedded-signup/implementation
-// Este código implementa el flujo oficial de WhatsApp Embedded Signup
-// usando el Facebook JavaScript SDK según las mejores prácticas de Meta
+// Servidor principal siguiendo principios MVP y buenas prácticas
+// Arquitectura modular con manejo centralizado de errores y logging
 
-const express = require('express');  // Framework web para Node.js
-const axios = require('axios');      // Cliente HTTP para llamadas a la API de Meta
-require('dotenv').config();          // Cargar variables de entorno desde .env
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+
+// Importar nueva arquitectura MVP
+const config = require('./src/config');
+const { logger, expressLogger } = require('./src/utils/logger');
+const { ErrorHandler } = require('./src/utils/errorHandler');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
 // ===================================================================
-// CONFIGURACIÓN - Variables de entorno (mejores prácticas de seguridad)
+// SECURITY MIDDLEWARE - Seguridad y protección
 // ===================================================================
-// IMPORTANTE: Todas las credenciales deben estar en el archivo .env
-// NUNCA hardcodear credenciales en el código fuente
-const WEBHOOK_VERIFY_TOKEN = process.env.WEBHOOK_VERIFY_TOKEN;
-const WEBHOOK_URL = process.env.WEBHOOK_URL;
-const APP_ID = process.env.APP_ID;
-const APP_SECRET = process.env.APP_SECRET;
-const CONFIGURATION_ID = process.env.CONFIGURATION_ID;
 
-// Variables para Instagram Business Login
-const INSTAGRAM_APP_ID = process.env.INSTAGRAM_APP_ID;
-const INSTAGRAM_APP_SECRET = process.env.INSTAGRAM_APP_SECRET;
-const INSTAGRAM_REDIRECT_URI = process.env.INSTAGRAM_REDIRECT_URI || `http://localhost:${process.env.PORT || 3000}/instagram/callback`;
+// Helmet para headers de seguridad
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "https://connect.facebook.net"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", "data:", "https:"],
+            connectSrc: ["'self'", "https://graph.facebook.com", "https://api.whatsapp.com"],
+            frameSrc: ["'none'"],
+            objectSrc: ["'none'"],
+            upgradeInsecureRequests: []
+        }
+    }
+}));
 
-// Verificar que todas las variables críticas estén configuradas
-if (!APP_ID || !APP_SECRET || !CONFIGURATION_ID) {
-    console.error('❌ ERROR: Variables de entorno faltantes en .env:');
-    if (!APP_ID) console.error('  - APP_ID no configurado');
-    if (!APP_SECRET) console.error('  - APP_SECRET no configurado');
-    if (!CONFIGURATION_ID) console.error('  - CONFIGURATION_ID no configurado');
-    console.error('  Por favor, configura todas las variables en el archivo .env');
-    process.exit(1);
-}
+// CORS configuration
+app.use(cors({
+    origin: process.env.NODE_ENV === 'production' 
+        ? [process.env.FRONTEND_URL] 
+        : ['http://localhost:3000', /\.ngrok\.io$/],
+    credentials: true
+}));
 
-// Verificar variables de webhook (opcionales para desarrollo)
-if (!WEBHOOK_VERIFY_TOKEN) {
-    console.warn('⚠️ ADVERTENCIA: WEBHOOK_VERIFY_TOKEN no configurado. Webhook no funcionará.');
-}
+// Rate limiting
+const limiter = rateLimit({
+    windowMs: config.rateLimit.windowMs,
+    max: config.rateLimit.max,
+    message: {
+        success: false,
+        error: 'Demasiadas solicitudes, intenta de nuevo más tarde',
+        code: 'RATE_LIMIT_EXCEEDED'
+    },
+    standardHeaders: true,
+    legacyHeaders: false
+});
 
-console.log('✅ Variables de entorno cargadas correctamente:');
-console.log(`  - APP_ID: ${APP_ID}`);
-console.log(`  - CONFIGURATION_ID: ${CONFIGURATION_ID}`);
-console.log(`  - WEBHOOK_URL: ${WEBHOOK_URL || 'No configurado'}`);
-console.log(`  - WEBHOOK_TOKEN: ${WEBHOOK_VERIFY_TOKEN ? 'Configurado' : 'No configurado'}`);
-console.log(`  - INSTAGRAM_APP_ID: ${INSTAGRAM_APP_ID || 'No configurado'}`);
-console.log(`  - INSTAGRAM_REDIRECT_URI: ${INSTAGRAM_REDIRECT_URI}`);
+app.use('/api/', limiter);
 
 // ===================================================================
-// MIDDLEWARE - Configuración del servidor Express
+// MIDDLEWARE BÁSICO
 // ===================================================================
-app.use(express.json());                        // Parsear JSON en requests
-app.use(express.urlencoded({ extended: true })); // Parsear formularios URL-encoded
+
+// Body parsing
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Logging middleware
+app.use(expressLogger);
 
 // Servir archivos estáticos
 app.use(express.static('public'));
+
+// ===================================================================
+// NGROK SUPPORT - Soporte para desarrollo con ngrok
+// ===================================================================
+
+// Detectar si estamos usando ngrok
+app.use((req, res, next) => {
+    if (req.get('host')?.includes('ngrok')) {
+        // Headers específicos para ngrok
+        res.setHeader('ngrok-skip-browser-warning', 'true');
+        
+        // CSP más permisivo para ngrok
+        res.setHeader('Content-Security-Policy', 
+            "default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob:; " +
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://connect.facebook.net; " +
+            "style-src 'self' 'unsafe-inline'; " +
+            "img-src 'self' data: https:; " +
+            "connect-src 'self' https://graph.facebook.com https://api.whatsapp.com;"
+        );
+        
+        logger.info('Ngrok environment detected', { 
+            host: req.get('host'),
+            userAgent: req.get('User-Agent')
+        });
+    }
+    next();
+});
+
+// ===================================================================
+// HEALTH CHECK Y STATUS
+// ===================================================================
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+    const healthStatus = {
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        environment: config.env,
+        services: config.getStatus().services
+    };
+    
+    logger.info('Health check requested', healthStatus);
+    res.json(healthStatus);
+});
+
+// Status endpoint con información detallada
+app.get('/api/status', (req, res) => {
+    const status = config.getStatus();
+    logger.info('Status endpoint accessed', status);
+    res.json({
+        success: true,
+        data: status
+    });
+});
+
+// ===================================================================
+// RUTAS PRINCIPALES
+// ===================================================================
 
 // Cargar rutas desde archivo separado
 const routes = require('./routes');
 app.use('/', routes);
 
 // ===================================================================
+// ERROR HANDLING - Manejo centralizado de errores
+// ===================================================================
+
+// 404 Handler
+app.use('*', (req, res) => {
+    logger.warn('Route not found', { 
+        url: req.originalUrl, 
+        method: req.method 
+    });
+    
+    res.status(404).json({
+        success: false,
+        error: 'Endpoint no encontrado',
+        code: 'NOT_FOUND',
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Error handling middleware
+app.use(ErrorHandler.middleware());
+
+// ===================================================================
+// GRACEFUL SHUTDOWN - Cierre elegante del servidor
+// ===================================================================
+
+let server;
+
+const gracefulShutdown = (signal) => {
+    logger.info(`Received ${signal}, shutting down gracefully`);
+    
+    if (server) {
+        server.close(() => {
+            logger.info('Server closed successfully');
+            process.exit(0);
+        });
+        
+        // Force close after 10 seconds
+        setTimeout(() => {
+            logger.error('Forced server shutdown');
+            process.exit(1);
+        }, 10000);
+    } else {
+        process.exit(0);
+    }
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// ===================================================================
 // INICIO DEL SERVIDOR
 // ===================================================================
-// Inicia el servidor Express en el puerto especificado
-// Muestra información útil sobre los endpoints disponibles
-// Para probar la implementación:
-// 1. Ejecuta: npm start
-// 2. Ve a: http://localhost:3000
-// 3. Configura CONFIGURATION_ID en .env
-// 4. Asegúrate de tener configurado localhost en Meta Developer Console
-app.listen(PORT, () => {
-    console.log(`🚀 Servidor iniciado en http://localhost:${PORT}`);
-    console.log(`📱 WhatsApp Embedded Signup con Facebook SDK oficial`);
-    console.log(`📋 Estado: http://localhost:${PORT}/api/status`);
-    console.log(`🗑️ Eliminación de datos: http://localhost:${PORT}/data-deletion`);
-    console.log(`📚 Documentación: https://developers.facebook.com/docs/whatsapp/embedded-signup/implementation`);
+
+server = app.listen(config.port, () => {
+    logger.info('🚀 WhatsApp Integration Platform MVP iniciado', {
+        port: config.port,
+        environment: config.env,
+        services: config.getStatus().services
+    });
+    
+    console.log('\n' + '='.repeat(60));
+    console.log('🚀 MVP - INTEGRATION PLATFORM');
+    console.log('='.repeat(60));
+    console.log(`📍 Servidor: http://localhost:${config.port}`);
+    console.log(`🌍 Entorno: ${config.env}`);
+    console.log(`📊 Estado: http://localhost:${config.port}/api/status`);
+    console.log(`❤️ Health: http://localhost:${config.port}/health`);
+    console.log(`🧪 WhatsApp Test: http://localhost:${config.port}/whatsapp-messenger/test`);
+    console.log('='.repeat(60));
+    
+    // Mostrar servicios configurados
+    const services = config.getStatus().services;
+    console.log('📋 SERVICIOS CONFIGURADOS:');
+    console.log(`  ✅ WhatsApp: ${services.whatsapp ? 'Habilitado' : '❌ No configurado'}`);
+    console.log(`  ✅ Webhook: ${services.webhook ? 'Habilitado' : '⚠️ No configurado'}`);
+    console.log(`  ✅ Instagram: ${services.instagram ? 'Habilitado' : '⚠️ No configurado'}`);
+    console.log(`  ✅ Tienda Nube: ${services.tiendanube ? 'Habilitado' : '⚠️ No configurado'}`);
+    console.log('='.repeat(60));
+    
+    if (!services.whatsapp) {
+        console.log('⚠️ CONFIGURACIÓN REQUERIDA:');
+        console.log('  Por favor configura las variables en .env:');
+        console.log('  - APP_ID, APP_SECRET, CONFIGURATION_ID');
+        console.log('='.repeat(60));
+    }
+    
+    console.log('📚 Documentación: https://developers.facebook.com/docs/whatsapp/embedded-signup');
+    console.log('🔧 Para desarrollo con ngrok: ngrok http 3000 --host-header=localhost:3000');
+    console.log('='.repeat(60) + '\n');
+});
+
+// Handle server errors
+server.on('error', (error) => {
+    logger.error('Server error', { error: error.message, stack: error.stack });
+    process.exit(1);
 });
 
 module.exports = app;

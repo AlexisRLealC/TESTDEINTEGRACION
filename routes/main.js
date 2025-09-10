@@ -10,6 +10,9 @@ const WEBHOOK_URL = process.env.WEBHOOK_URL;
 const INSTAGRAM_APP_ID = process.env.INSTAGRAM_APP_ID;
 const INSTAGRAM_APP_SECRET = process.env.INSTAGRAM_APP_SECRET;
 const INSTAGRAM_REDIRECT_URI = process.env.INSTAGRAM_REDIRECT_URI || `http://localhost:${process.env.PORT || 3000}/instagram/callback`;
+const TIENDANUBE_CLIENT_ID = process.env.TIENDANUBE_CLIENT_ID;
+const TIENDANUBE_CLIENT_SECRET = process.env.TIENDANUBE_CLIENT_SECRET;
+const TIENDANUBE_REDIRECT_URI = process.env.TIENDANUBE_REDIRECT_URI || `http://localhost:${process.env.PORT || 3000}/tiendanube/callback`;
 
 // ===================================================================
 // PÁGINA PRINCIPAL - Interfaz con Facebook JavaScript SDK oficial
@@ -21,16 +24,76 @@ router.get('/', (req, res) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WhatsApp Embedded Signup - Implementación Oficial</title>
+    <title>MVP - Integration Platform</title>
     <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
-    <!-- SDK loading según documentación oficial -->
-    <script async defer crossorigin="anonymous" src="https://connect.facebook.net/en_US/sdk.js"></script>
+    <!-- SDK loading según documentación oficial con soporte para ngrok -->
+    <script>
+        // Detectar si estamos en ngrok
+        const isNgrok = window.location.hostname.includes('ngrok') || window.location.hostname.includes('ngrok-free.app');
+        console.log('🌐 Entorno detectado:', isNgrok ? 'ngrok' : 'localhost');
+        
+        // Función para cargar SDK con reintentos
+        function loadFacebookSDK() {
+            return new Promise((resolve, reject) => {
+                // Si ya está cargado, resolver inmediatamente
+                if (window.FB) {
+                    resolve();
+                    return;
+                }
+                
+                const script = document.createElement('script');
+                script.async = true;
+                script.defer = true;
+                script.crossOrigin = 'anonymous';
+                script.src = 'https://connect.facebook.net/en_US/sdk.js';
+                
+                script.onload = () => {
+                    console.log('✅ Facebook SDK cargado desde CDN');
+                    resolve();
+                };
+                
+                script.onerror = () => {
+                    console.warn('⚠️ Error cargando SDK desde CDN, intentando fallback...');
+                    reject(new Error('CDN failed'));
+                };
+                
+                document.head.appendChild(script);
+                
+                // Timeout específico para ngrok (más tiempo)
+                const timeout = isNgrok ? 15000 : 10000;
+                setTimeout(() => {
+                    if (!window.FB) {
+                        reject(new Error('Timeout'));
+                    }
+                }, timeout);
+            });
+        }
+        
+        // Cargar SDK con manejo de errores
+        loadFacebookSDK()
+            .then(() => {
+                console.log('🎯 SDK listo para inicializar');
+            })
+            .catch((error) => {
+                console.error('❌ Error cargando Facebook SDK:', error.message);
+                const statusDiv = document.getElementById('sdk-status');
+                if (statusDiv) {
+                    statusDiv.className = 'sdk-status sdk-error';
+                    statusDiv.innerHTML = '❌ Error: Facebook SDK no disponible' + (isNgrok ? ' (problema común en ngrok)' : '');
+                }
+                const signupBtn = document.getElementById('whatsapp-signup-btn');
+                if (signupBtn) {
+                    signupBtn.disabled = true;
+                    signupBtn.innerHTML = '❌ SDK no disponible';
+                }
+            });
+    </script>
     
     <div class="container">
-        <h1>🚀 WhatsApp Embedded Signup</h1>
-        <p style="text-align: center; color: #666; font-size: 18px;">Implementación oficial con Facebook JavaScript SDK</p>
+        <h1>🚀 MVP - Integration Platform</h1>
+        <p class="subtitle">Plataforma de integración con WhatsApp Business Cloud API</p>
         
         <div id="sdk-status" class="sdk-status sdk-loading">
             ⏳ Cargando Facebook SDK...
@@ -38,15 +101,19 @@ router.get('/', (req, res) => {
         
         <div class="status-box">
             <h3>📋 Estado de Configuración</h3>
-            <strong>APP_ID:</strong> ${APP_ID ? '✅ Configurado (' + APP_ID + ')' : '❌ No configurado'}<br>
-            <strong>APP_SECRET:</strong> ${APP_SECRET ? '✅ Configurado' : '❌ No configurado'}<br>
-            <strong>CONFIGURATION_ID:</strong> ${CONFIGURATION_ID ? '✅ Configurado (' + CONFIGURATION_ID + ')' : '⚠️ Requerido para funcionar'}<br>
-            <strong>WEBHOOK_TOKEN:</strong> ${WEBHOOK_VERIFY_TOKEN ? '✅ Configurado' : '❌ No configurado'}<br>
+            <strong>APP_ID:</strong> ${APP_ID ? '\\u2705 Configurado (' + APP_ID + ')' : '\\u274C No configurado'}<br>
+            <strong>APP_SECRET:</strong> ${APP_SECRET ? '\\u2705 Configurado' : '\\u274C No configurado'}<br>
+            <strong>CONFIGURATION_ID:</strong> ${CONFIGURATION_ID ? '\\u2705 Configurado (' + CONFIGURATION_ID + ')' : '\\u26A0 Requerido para funcionar'}<br>
+            <strong>WEBHOOK_TOKEN:</strong> ${WEBHOOK_VERIFY_TOKEN ? '\\u2705 Configurado' : '\\u274C No configurado'}<br>
             <strong>WEBHOOK_URL:</strong> ${WEBHOOK_URL || 'No configurado'}<br><br>
-            <strong>📸 INSTAGRAM BUSINESS LOGIN:</strong><br>
-            <strong>INSTAGRAM_APP_ID:</strong> ${INSTAGRAM_APP_ID ? '✅ Configurado' : '❌ No configurado'}<br>
-            <strong>INSTAGRAM_APP_SECRET:</strong> ${INSTAGRAM_APP_SECRET ? '✅ Configurado' : '❌ No configurado'}<br>
-            <strong>INSTAGRAM_REDIRECT_URI:</strong> ${INSTAGRAM_REDIRECT_URI}
+            <strong>\\u1F4F7 INSTAGRAM BUSINESS LOGIN:</strong><br>
+            <strong>INSTAGRAM_APP_ID:</strong> ${INSTAGRAM_APP_ID ? '\\u2705 Configurado' : '\\u274C No configurado'}<br>
+            <strong>INSTAGRAM_APP_SECRET:</strong> ${INSTAGRAM_APP_SECRET ? '\\u2705 Configurado' : '\\u274C No configurado'}<br>
+            <strong>INSTAGRAM_REDIRECT_URI:</strong> ${INSTAGRAM_REDIRECT_URI}<br><br>
+            <strong>\\u1F6D2 TIENDA NUBE:</strong><br>
+            <strong>TIENDANUBE_CLIENT_ID:</strong> ${TIENDANUBE_CLIENT_ID ? '\\u2705 Configurado' : '\\u274C No configurado'}<br>
+            <strong>TIENDANUBE_CLIENT_SECRET:</strong> ${TIENDANUBE_CLIENT_SECRET ? '\\u2705 Configurado' : '\\u274C No configurado'}<br>
+            <strong>TIENDANUBE_REDIRECT_URI:</strong> ${TIENDANUBE_REDIRECT_URI}
         </div>
 
         <div class="warning">
@@ -69,16 +136,30 @@ router.get('/', (req, res) => {
                 </li>
                 <li><strong>Facebook Login for Business → Configurations:</strong>
                     <ul>
-                        <li>Crear configuración desde template "WhatsApp Embedded Signup Configuration"</li>
+                        <li>Usar template: <code>"WhatsApp Embedded Signup Configuration With 60 Expiration Token"</code></li>
+                        <li>Verificar assets: WhatsApp Business Accounts, Business Phone Numbers, Business Portfolios</li>
+                        <li>Permisos: whatsapp_business_management, whatsapp_business_messaging, business_management</li>
                         <li>Copiar el Configuration ID y agregarlo al .env como CONFIGURATION_ID</li>
                     </ul>
                 </li>
             </ol>
+            
+            <h4>📱 Para ver opción "Conectar número existente":</h4>
+            <div style="background: #fff3cd; padding: 15px; border-radius: 5px; margin: 10px 0; color: #856404;">
+                <p><strong>Requisitos del usuario:</strong></p>
+                <ul>
+                    <li>✅ Tener WhatsApp Business Account existente</li>
+                    <li>✅ Ser administrador de la cuenta (no colaborador)</li>
+                    <li>✅ Tener números de WhatsApp Business configurados</li>
+                    <li>✅ Configuración debe incluir todos los assets necesarios</li>
+                </ul>
+                <p><strong>⚠️ Importante:</strong> Si no aparece la opción, revisar la configuración del template en Meta Console.</p>
+            </div>
         </div>
 
         <div style="margin: 30px 0; text-align: center;">
             <button id="whatsapp-signup-btn" class="btn whatsapp-btn" disabled>
-                📱 Iniciar WhatsApp Embedded Signup
+                📱 Conectar WhatsApp Business
             </button>
             <br>
             <button onclick="launchInstagramLogin()" class="btn instagram-btn">
@@ -86,11 +167,19 @@ router.get('/', (req, res) => {
             </button>
             <br>
             <a href="/messenger/test" class="btn" style="background: #1877f2; text-decoration: none;">
-                📨 Probar Messenger API
+                📱 Probar Messenger API
             </a>
             <br>
+            <a href="/whatsapp-messenger/test" class="btn" style="background: #25d366; text-decoration: none;">
+                💬 Probar WhatsApp API
+            </a>
+            <br>
+            <button onclick="launchTiendaNube()" class="btn tiendanube-btn">
+                🛍️ Conectar Tienda Nube
+            </button>
+            <br>
             <a href="/psid/help" class="btn" style="background: #28a745; text-decoration: none;">
-                🆔 Ayuda PSID
+                📝 Ayuda PSID
             </a>
             <br>
             <a href="/psid-lookup/test" class="btn" style="background: #6f42c1; text-decoration: none;">
@@ -114,10 +203,10 @@ router.get('/', (req, res) => {
         <div id="signup-results"></div>
 
         <div class="info-box">
-            <h3>ℹ️ Detalles Técnicos</h3>
+            <h3>📚 Detalles Técnicos</h3>
             <p><strong>SDK:</strong> Facebook JavaScript SDK (Oficial)</p>
             <p><strong>Versión Graph API:</strong> v23.0 (Última versión estable)</p>
-            <p><strong>Método:</strong> FB.login() con configuración WhatsApp</p>
+            <p><strong>Método:</strong> FB.login() con configuración de integración</p>
             <p><strong>Respuesta:</strong> Código intercambiable (TTL: 30 segundos)</p>
             <p><strong>Eventos:</strong> Message listener para datos de sesión</p>
         </div>
@@ -129,7 +218,9 @@ router.get('/', (req, res) => {
             APP_ID: '${APP_ID}',
             CONFIGURATION_ID: '${CONFIGURATION_ID}',
             INSTAGRAM_APP_ID: '${INSTAGRAM_APP_ID}',
-            INSTAGRAM_REDIRECT_URI: '${INSTAGRAM_REDIRECT_URI}'
+            INSTAGRAM_REDIRECT_URI: '${INSTAGRAM_REDIRECT_URI}',
+            TIENDANUBE_CLIENT_ID: '${TIENDANUBE_CLIENT_ID}',
+            TIENDANUBE_REDIRECT_URI: '${TIENDANUBE_REDIRECT_URI}'
         };
     </script>
     <script src="/js/main.js"></script>
@@ -157,7 +248,7 @@ router.get('/data-deletion', (req, res) => {
 </head>
 <body>
     <div class="container">
-        <h1>🗑️ Eliminación de Datos de Usuario</h1>
+        <h1>📁 Eliminación de Datos de Usuario</h1>
         <p>Si deseas eliminar tus datos personales de nuestra aplicación, puedes solicitarlo aquí.</p>
         
         <h3>Datos que almacenamos:</h3>

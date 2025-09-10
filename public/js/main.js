@@ -2,6 +2,7 @@
 // VARIABLES GLOBALES
 // ===================================================================
 let sdkReady = false;  // Flag para verificar si el SDK está listo
+let qrRefreshInterval = null; // Intervalo para regenerar QR
 
 // ===================================================================
 // SDK INITIALIZATION - Inicialización del Facebook JavaScript SDK
@@ -88,47 +89,63 @@ window.addEventListener('message', (event) => {
 // - authResponse.code: Código intercambiable (TTL: 30 segundos)
 // - Este código debe intercambiarse rápidamente por un token de acceso
 // - Si no hay authResponse, significa error o cancelación del usuario
-// Documentación: https://developers.facebook.com/docs/whatsapp/embedded-signup/implementation
 const fbLoginCallback = (response) => {
-    console.log('🔄 Respuesta completa del callback:', response);
+    console.log('📱 Respuesta de FB.login:', response);
     
     const resultsDiv = document.getElementById('results');
     resultsDiv.style.display = 'block';
     
-    if (response.authResponse && response.authResponse.code) {
+    if (response.authResponse) {
         const code = response.authResponse.code;
-        console.log('🎯 Código intercambiable recibido:', code);
+        console.log('✅ Código de autorización recibido:', code);
         
         resultsDiv.innerHTML = `
             <div class="success">
-                <h3>🎉 ¡Embedded Signup Completado Exitosamente!</h3>
-                <p><strong>✅ Código intercambiable:</strong> <code style="background: #f8f9fa; padding: 5px; border-radius: 3px;">${code}</code></p>
-                <p><strong>⏰ TTL:</strong> 30 segundos (intercambiar rápidamente)</p>
-                <p><strong>🔄 Estado:</strong> Enviando al servidor para intercambio por token...</p>
+                <h3>✅ Autorización Exitosa</h3>
+                <p>Se recibió el código de autorización. Procesando...</p>
+                <div class="json-display">${JSON.stringify(response.authResponse, null, 2)}</div>
+                <p><small>⏱️ El código expira en 30 segundos - Intercambiando automáticamente...</small></p>
             </div>
         `;
         
-        // Intercambiar código por token en el servidor
+        // Enviar código al servidor para intercambio inmediato
         fetch('/api/exchange-token', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json'
+            },
             body: JSON.stringify({ code: code })
         })
         .then(response => response.json())
         .then(data => {
-            resultsDiv.innerHTML += `
-                <div class="info-box">
-                    <h3>🔄 Resultado del Intercambio de Token</h3>
-                    <div class="json-display">${JSON.stringify(data, null, 2)}</div>
-                </div>
-            `;
+            console.log('🔄 Respuesta del intercambio de token:', data);
+            
+            if (data.success) {
+                resultsDiv.innerHTML = `
+                    <div class="success">
+                        <h3>🎉 Token Intercambiado Exitosamente</h3>
+                        <p><strong>Estado:</strong> Cliente registrado correctamente</p>
+                        <div class="json-display">${JSON.stringify(data, null, 2)}</div>
+                        <p><small>✅ El cliente ya puede usar WhatsApp Business API</small></p>
+                    </div>
+                `;
+            } else {
+                resultsDiv.innerHTML = `
+                    <div class="error">
+                        <h3>❌ Error en Intercambio de Token</h3>
+                        <p><strong>Error:</strong> ${data.error}</p>
+                        <div class="json-display">${JSON.stringify(data, null, 2)}</div>
+                        <p><small>Verifica que el servidor esté funcionando y que las credenciales sean correctas.</small></p>
+                    </div>
+                `;
+            }
         })
         .catch(error => {
-            console.error('Error en intercambio:', error);
-            resultsDiv.innerHTML += `
+            console.error('❌ Error en intercambio de token:', error);
+            resultsDiv.innerHTML = `
                 <div class="error">
-                    <h3>❌ Error en el Intercambio</h3>
-                    <p>No se pudo intercambiar el código por el token: ${error.message}</p>
+                    <h3>❌ Error de Conexión</h3>
+                    <p>No se pudo intercambiar el token: ${error.message}</p>
                     <p><small>Verifica que el servidor esté funcionando y que las credenciales sean correctas.</small></p>
                 </div>
             `;
@@ -149,14 +166,7 @@ const fbLoginCallback = (response) => {
 // LAUNCH METHOD - Iniciar el flujo de WhatsApp Embedded Signup
 // ===================================================================
 // Esta función lanza el flujo oficial de Embedded Signup usando FB.login()
-// Parámetros importantes:
-// - config_id: ID de configuración creado en Meta Developer Console
-// - response_type: 'code' para recibir código intercambiable
-// - override_default_response_type: true (requerido para WhatsApp)
-// - extras.featureType: '' (vacío para flujo por defecto)
-// - extras.sessionInfoVersion: '3' (versión actual)
-// Documentación: https://developers.facebook.com/docs/whatsapp/embedded-signup/implementation
-const launchWhatsAppSignup = () => {
+const startEmbeddedSignup = () => {
     if (!sdkReady) {
         alert('⏳ El SDK de Facebook aún se está cargando. Espera un momento.');
         return;
@@ -164,20 +174,67 @@ const launchWhatsAppSignup = () => {
     
     console.log('🚀 Iniciando WhatsApp Embedded Signup...');
     
+    // Limpiar intervalo anterior si existe
+    if (qrRefreshInterval) {
+        clearInterval(qrRefreshInterval);
+    }
+    
     // Limpiar resultados anteriores
     document.getElementById('results').style.display = 'none';
     document.getElementById('signup-results').style.display = 'none';
     
+    // Configuración oficial según documentación de Meta
     FB.login(fbLoginCallback, {
-        config_id: window.APP_CONFIG.CONFIGURATION_ID,  // ID de configuración de WhatsApp
+        config_id: window.APP_CONFIG.CONFIGURATION_ID,
         response_type: 'code',
         override_default_response_type: true,
         extras: {
             setup: {},
-            featureType: '', // Vacío para flujo por defecto
+            featureType: 'whatsapp_business_app_onboarding',
             sessionInfoVersion: '3'
         }
     });
+    
+    // Auto-regenerar QR cada 5 minutos para evitar expiración
+    qrRefreshInterval = setInterval(() => {
+        console.log('🔄 Regenerando código QR para evitar expiración...');
+        
+        // Mostrar notificación al usuario
+        const notification = document.createElement('div');
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #1877f2;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            z-index: 9999;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        `;
+        notification.innerHTML = '🔄 Regenerando código QR...';
+        document.body.appendChild(notification);
+        
+        // Reiniciar el flujo
+        FB.login(fbLoginCallback, {
+            config_id: window.APP_CONFIG.CONFIGURATION_ID,
+            response_type: 'code',
+            override_default_response_type: true,
+            extras: {
+                setup: {},
+                featureType: '',
+                sessionInfoVersion: '3'
+            }
+        });
+        
+        // Remover notificación después de 3 segundos
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 3000);
+        
+    }, 5 * 60 * 1000); // 5 minutos
 };
 
 // ===================================================================
@@ -296,6 +353,67 @@ function launchInstagramLogin() {
     }, 600000); // 10 minutos
 }
 
+// ===================================================================
+// TIENDA NUBE LOGIN - OAuth Integration
+// ===================================================================
+function launchTiendaNube() {
+    console.log('🛍️ Iniciando integración OAuth de Tienda Nube...');
+    
+    // Mostrar información del proceso
+    const resultsDiv = document.getElementById('results');
+    resultsDiv.style.display = 'block';
+    resultsDiv.innerHTML = `
+        <div class="info-box">
+            <h3>🛍️ Tienda Nube OAuth Integration</h3>
+            <p>Iniciando proceso de autorización oficial de Tienda Nube...</p>
+            <p><strong>Flujo:</strong> OAuth 2.0 Authorization Code</p>
+            <p><strong>Método:</strong> Redirect al portal de autorización</p>
+            <p><strong>Endpoint:</strong> tiendanube.com/apps/authorize/auth</p>
+            
+            <h4>🔐 Proceso de Autorización:</h4>
+            <ul style="text-align: left;">
+                <li><strong>1.</strong> Redirección a Tienda Nube para login</li>
+                <li><strong>2.</strong> Usuario autoriza los permisos solicitados</li>
+                <li><strong>3.</strong> Callback con código de autorización (TTL: 5 min)</li>
+                <li><strong>4.</strong> Código listo para intercambio por access_token</li>
+            </ul>
+            
+            <div style="background: #d1ecf1; padding: 10px; border-radius: 5px; margin: 10px 0; color: #0c5460;">
+                <p><strong>✨ Flujo OAuth Completo</strong></p>
+                <p><strong>🔄 Estado:</strong> Redirigiendo a Tienda Nube...</p>
+                <p><strong>⏱️ TTL del código:</strong> 5 minutos</p>
+                <p><strong>📋 Uso:</strong> El código se mostrará para usar en Postman</p>
+            </div>
+            
+            <div style="background: #fff3cd; padding: 10px; border-radius: 5px; margin: 10px 0; color: #856404;">
+                <p><strong>⚠️ Importante:</strong> Después de autorizar, recibirás un código que expira en 5 minutos.</p>
+                <p><strong>🔒 Seguridad:</strong> Se incluye protección CSRF con parámetro state.</p>
+            </div>
+        </div>
+    `;
+    
+    // Redirigir al endpoint de autorización
+    console.log('🔗 Redirigiendo a /tiendanube/auth para iniciar OAuth...');
+    window.location.href = '/tiendanube/auth';
+}
+
+// ===================================================================
+// TIENDA NUBE LOGIN - Placeholder function
+// ===================================================================
+// function launchTiendaNube() {
+//     console.log('🛍️ Tienda Nube button clicked - functionality to be implemented');
+    
+//     const resultsDiv = document.getElementById('results');
+//     resultsDiv.style.display = 'block';
+//     resultsDiv.innerHTML = `
+//         <div class="info-box">
+//             <h3>🛍️ Tienda Nube Integration</h3>
+//             <p>Esta funcionalidad será implementada próximamente.</p>
+//             <p><strong>Estado:</strong> Botón creado - Funcionalidad pendiente</p>
+//         </div>
+//     `;
+// }
+
 // Función de verificación de estado
 function checkStatus() {
     fetch('/api/status')
@@ -327,6 +445,6 @@ function checkStatus() {
 document.addEventListener('DOMContentLoaded', function() {
     const signupBtn = document.getElementById('whatsapp-signup-btn');
     if (signupBtn) {
-        signupBtn.addEventListener('click', launchWhatsAppSignup);
+        signupBtn.addEventListener('click', startEmbeddedSignup);
     }
 });

@@ -9,7 +9,7 @@ $RECYCLE.BIN/
 
 # Archivos de entorno
 .env
-.env.*
+
 
 # Node.js
 node_modules/

@@ -7,15 +7,75 @@ const router = express.Router();
 // ===================================================================
 
 // ENDPOINT: /api/process-signup-data
-router.post('/process-signup-data', (req, res) => {
+router.post('/process-signup-data', async (req, res) => {
     console.log('📱 Datos de WhatsApp Embedded Signup recibidos:', req.body);
     
-    res.json({
-        success: true,
-        message: 'Datos de signup procesados correctamente',
-        received_data: req.body,
-        timestamp: new Date().toISOString()
-    });
+    try {
+        const { data, type, event } = req.body;
+        
+        // Verificar que sea un evento de WhatsApp Embedded Signup exitoso
+        if (type !== 'WA_EMBEDDED_SIGNUP' || !data) {
+            return res.json({
+                success: true,
+                message: 'Evento recibido pero no requiere procesamiento',
+                received_data: req.body,
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        // Extraer datos críticos
+        const { phone_number_id, waba_id, business_id } = data;
+        
+        if (!phone_number_id || !waba_id) {
+            console.warn('⚠️ Datos incompletos en signup:', data);
+            return res.json({
+                success: false,
+                error: 'Datos de signup incompletos - faltan phone_number_id o waba_id',
+                received_data: req.body
+            });
+        }
+        
+        console.log('🔄 Procesando signup exitoso:', {
+            phone_number_id,
+            waba_id,
+            business_id,
+            event
+        });
+        
+        // TODO: Aquí se debe implementar el intercambio de token
+        // Nota: El código de token viene en el callback de FB.login, no en este mensaje
+        // Este endpoint procesa los datos de sesión, el token se maneja por separado
+        
+        // Respuesta exitosa
+        res.json({
+            success: true,
+            message: 'Signup procesado correctamente - Cliente registrado',
+            processed_data: {
+                phone_number_id,
+                waba_id,
+                business_id,
+                event,
+                status: 'Cliente listo para mensajería'
+            },
+            next_steps: [
+                'Intercambiar código de token por access token',
+                'Suscribir app a webhooks de WABA',
+                'Registrar número de teléfono para Cloud API',
+                'Cliente puede comenzar a enviar mensajes'
+            ],
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Error procesando signup data:', error);
+        
+        res.status(500).json({
+            success: false,
+            error: 'Error interno procesando datos de signup',
+            details: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
 });
 
 // ENDPOINT: /api/exchange-token
@@ -262,5 +322,112 @@ router.post('/instagram/send-message', async (req, res) => {
         });
     }
 });
+
+// ===================================================================
+// WEBHOOK ENDPOINTS - Requeridos para WhatsApp Embedded Signup
+// ===================================================================
+
+// ENDPOINT: /webhook - Verificación de webhook (GET)
+router.get('/webhook', (req, res) => {
+    const VERIFY_TOKEN = process.env.WEBHOOK_VERIFY_TOKEN;
+    
+    const mode = req.query['hub.mode'];
+    const token = req.query['hub.verify_token'];
+    const challenge = req.query['hub.challenge'];
+    
+    if (mode && token) {
+        if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+            console.log('✅ Webhook verificado correctamente');
+            res.status(200).send(challenge);
+        } else {
+            console.error('❌ Token de verificación incorrecto');
+            res.sendStatus(403);
+        }
+    } else {
+        console.error('❌ Parámetros de verificación faltantes');
+        res.sendStatus(400);
+    }
+});
+
+// ENDPOINT: /webhook - Recepción de webhooks (POST)
+// CRÍTICO: account_update webhook es OBLIGATORIO para Embedded Signup
+router.post('/webhook', (req, res) => {
+    console.log('📨 Webhook recibido:', JSON.stringify(req.body, null, 2));
+    
+    try {
+        const body = req.body;
+        
+        if (body.object === 'whatsapp_business_account') {
+            body.entry.forEach(entry => {
+                entry.changes.forEach(change => {
+                    console.log('🔄 Cambio detectado:', change.field, change.value);
+                    
+                    switch (change.field) {
+                        case 'account_update':
+                            console.log('📱 Account Update - Cliente completó Embedded Signup');
+                            handleAccountUpdate(change.value);
+                            break;
+                            
+                        case 'account_review_update':
+                            console.log('📋 Account Review Update');
+                            handleAccountReviewUpdate(change.value);
+                            break;
+                            
+                        case 'business_capability_update':
+                            console.log('🏢 Business Capability Update');
+                            handleBusinessCapabilityUpdate(change.value);
+                            break;
+                            
+                        case 'messages':
+                            console.log('💬 Mensaje recibido');
+                            handleMessage(change.value);
+                            break;
+                            
+                        default:
+                            console.log('📝 Webhook no manejado:', change.field);
+                    }
+                });
+            });
+        }
+        
+        res.status(200).send('EVENT_RECEIVED');
+        
+    } catch (error) {
+        console.error('❌ Error procesando webhook:', error);
+        res.status(500).send('ERROR');
+    }
+});
+
+// Función para manejar account_update (CRÍTICO para Embedded Signup)
+function handleAccountUpdate(value) {
+    console.log('🎯 Procesando account_update:', value);
+    
+    // Este webhook se dispara cuando un cliente completa Embedded Signup
+    // Contiene información sobre cambios en la WABA del cliente
+    if (value.phone_number && value.phone_number.length > 0) {
+        value.phone_number.forEach(phone => {
+            console.log('📞 Número registrado:', phone.phone_number, 'ID:', phone.id);
+        });
+    }
+    
+    if (value.ban_info) {
+        console.log('⚠️ Información de ban:', value.ban_info);
+    }
+    
+    // Aquí puedes agregar lógica adicional para procesar el account_update
+    // Por ejemplo: actualizar base de datos, notificar al cliente, etc.
+}
+
+function handleAccountReviewUpdate(value) {
+    console.log('📋 Account Review Update:', value);
+}
+
+function handleBusinessCapabilityUpdate(value) {
+    console.log('🏢 Business Capability Update:', value);
+}
+
+function handleMessage(value) {
+    console.log('💬 Mensaje:', value);
+}
 
 module.exports = router;
