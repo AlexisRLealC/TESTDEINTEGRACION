@@ -191,14 +191,14 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 // ===================================================================
 
 server = app.listen(config.port, () => {
-    logger.info('🚀 WhatsApp Integration Platform MVP iniciado', {
+    logger.info('🚀 MVP - Integration Platform iniciado', {
         port: config.port,
         environment: config.env,
         services: config.getStatus().services
     });
     
     console.log('\n' + '='.repeat(60));
-    console.log('🚀 MVP - INTEGRATION PLATFORM');
+    console.log('🚀 MVP - Integration Platform');
     console.log('='.repeat(60));
     console.log(`📍 Servidor: http://localhost:${config.port}`);
     console.log(`🌍 Entorno: ${config.env}`);

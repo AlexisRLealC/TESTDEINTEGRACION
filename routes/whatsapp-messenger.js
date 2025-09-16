@@ -12,7 +12,7 @@ const router = express.Router();
 router.post('/send-text', async (req, res) => {
     const { to, message_text, access_token, phone_number_id } = req.body;
     
-    console.log('📱 Enviando mensaje de WhatsApp:', {
+    console.log(' Enviando mensaje de WhatsApp:', {
         to,
         message_text: message_text?.substring(0, 50) + '...',
         phone_number_id,
@@ -44,11 +44,11 @@ router.post('/send-text', async (req, res) => {
             }
         };
         
-        console.log('📄 Payload del mensaje:', JSON.stringify(messagePayload, null, 2));
+        console.log(' Payload del mensaje:', JSON.stringify(messagePayload, null, 2));
         
         const apiUrl = `https://graph.facebook.com/v21.0/${phone_number_id}/messages`;
         
-        console.log(`🌐 URL del API: ${apiUrl}`);
+        console.log(` URL del API: ${apiUrl}`);
         
         // Enviar mensaje usando WhatsApp Cloud API
         const response = await axios.post(
@@ -62,7 +62,7 @@ router.post('/send-text', async (req, res) => {
             }
         );
         
-        console.log('✅ Mensaje enviado exitosamente:', response.data);
+        console.log(' Mensaje enviado exitosamente:', response.data);
         
         res.json({
             success: true,
@@ -73,7 +73,7 @@ router.post('/send-text', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Error enviando mensaje de WhatsApp:', {
+        console.error(' Error enviando mensaje de WhatsApp:', {
             status: error.response?.status,
             statusText: error.response?.statusText,
             data: error.response?.data,
@@ -99,7 +99,7 @@ router.post('/send-text', async (req, res) => {
 router.post('/send-image', async (req, res) => {
     const { to, image_url, caption, access_token, phone_number_id } = req.body;
     
-    console.log('🖼️ Enviando imagen de WhatsApp:', {
+    console.log(' Enviando imagen de WhatsApp:', {
         to,
         image_url,
         caption,
@@ -125,7 +125,7 @@ router.post('/send-image', async (req, res) => {
             }
         };
         
-        console.log('📄 Payload de imagen:', JSON.stringify(messagePayload, null, 2));
+        console.log(' Payload de imagen:', JSON.stringify(messagePayload, null, 2));
         
         const response = await axios.post(
             `https://graph.facebook.com/v21.0/${phone_number_id}/messages`,
@@ -138,7 +138,7 @@ router.post('/send-image', async (req, res) => {
             }
         );
         
-        console.log('✅ Imagen enviada exitosamente:', response.data);
+        console.log(' Imagen enviada exitosamente:', response.data);
         
         res.json({
             success: true,
@@ -149,131 +149,11 @@ router.post('/send-image', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Error enviando imagen de WhatsApp:', error.response?.data || error.message);
+        console.error(' Error enviando imagen de WhatsApp:', error.response?.data || error.message);
         
         res.status(500).json({
             success: false,
             error: 'Error enviando imagen via WhatsApp Cloud API',
-            details: error.response?.data || error.message,
-            timestamp: new Date().toISOString()
-        });
-    }
-});
-
-// ENDPOINT: /whatsapp-messenger/typing-on
-// Activar indicador de escritura
-router.post('/typing-on', async (req, res) => {
-    const { to, access_token, phone_number_id } = req.body;
-    
-    console.log('⌨️ Activando indicador de escritura:', {
-        to,
-        phone_number_id,
-        access_token_length: access_token?.length
-    });
-    
-    if (!to || !access_token || !phone_number_id) {
-        return res.status(400).json({
-            success: false,
-            error: 'Parámetros requeridos: to, access_token, phone_number_id'
-        });
-    }
-    
-    try {
-        const payload = {
-            messaging_product: "whatsapp",
-            recipient_type: "individual",
-            to: to,
-            type: "typing_on"
-        };
-        
-        console.log('📄 Payload typing indicator:', JSON.stringify(payload, null, 2));
-        
-        const response = await axios.post(
-            `https://graph.facebook.com/v21.0/${phone_number_id}/messages`,
-            payload,
-            {
-                headers: {
-                    'Authorization': `Bearer ${access_token}`,
-                    'Content-Type': 'application/json'
-                }
-            }
-        );
-        
-        console.log('✅ Indicador de escritura activado:', response.data);
-        
-        res.json({
-            success: true,
-            message: 'Indicador de escritura activado',
-            response_data: response.data,
-            sent_at: new Date().toISOString()
-        });
-        
-    } catch (error) {
-        console.error('❌ Error activando indicador de escritura:', error.response?.data || error.message);
-        
-        res.status(500).json({
-            success: false,
-            error: 'Error activando indicador de escritura',
-            details: error.response?.data || error.message,
-            timestamp: new Date().toISOString()
-        });
-    }
-});
-
-// ENDPOINT: /whatsapp-messenger/typing-off
-// Desactivar indicador de escritura
-router.post('/typing-off', async (req, res) => {
-    const { to, access_token, phone_number_id } = req.body;
-    
-    console.log('⌨️ Desactivando indicador de escritura:', {
-        to,
-        phone_number_id,
-        access_token_length: access_token?.length
-    });
-    
-    if (!to || !access_token || !phone_number_id) {
-        return res.status(400).json({
-            success: false,
-            error: 'Parámetros requeridos: to, access_token, phone_number_id'
-        });
-    }
-    
-    try {
-        const payload = {
-            messaging_product: "whatsapp",
-            recipient_type: "individual",
-            to: to,
-            type: "typing_off"
-        };
-        
-        console.log('📄 Payload typing off:', JSON.stringify(payload, null, 2));
-        
-        const response = await axios.post(
-            `https://graph.facebook.com/v21.0/${phone_number_id}/messages`,
-            payload,
-            {
-                headers: {
-                    'Authorization': `Bearer ${access_token}`,
-                    'Content-Type': 'application/json'
-                }
-            }
-        );
-        
-        console.log('✅ Indicador de escritura desactivado:', response.data);
-        
-        res.json({
-            success: true,
-            message: 'Indicador de escritura desactivado',
-            response_data: response.data,
-            sent_at: new Date().toISOString()
-        });
-        
-    } catch (error) {
-        console.error('❌ Error desactivando indicador de escritura:', error.response?.data || error.message);
-        
-        res.status(500).json({
-            success: false,
-            error: 'Error desactivando indicador de escritura',
             details: error.response?.data || error.message,
             timestamp: new Date().toISOString()
         });
@@ -285,7 +165,7 @@ router.post('/typing-off', async (req, res) => {
 router.post('/mark-read', async (req, res) => {
     const { message_id, access_token, phone_number_id } = req.body;
     
-    console.log('👁️ Marcando mensaje como leído:', {
+    console.log(' Marcando mensaje como leído:', {
         message_id,
         phone_number_id,
         access_token_length: access_token?.length
@@ -305,7 +185,7 @@ router.post('/mark-read', async (req, res) => {
             message_id: message_id
         };
         
-        console.log('📄 Payload mark as read:', JSON.stringify(payload, null, 2));
+        console.log(' Payload mark as read:', JSON.stringify(payload, null, 2));
         
         const response = await axios.post(
             `https://graph.facebook.com/v21.0/${phone_number_id}/messages`,
@@ -318,7 +198,7 @@ router.post('/mark-read', async (req, res) => {
             }
         );
         
-        console.log('✅ Mensaje marcado como leído:', response.data);
+        console.log(' Mensaje marcado como leído:', response.data);
         
         res.json({
             success: true,
@@ -328,13 +208,284 @@ router.post('/mark-read', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Error marcando mensaje como leído:', error.response?.data || error.message);
+        console.error(' Error marcando mensaje como leído:', error.response?.data || error.message);
         
         res.status(500).json({
             success: false,
             error: 'Error marcando mensaje como leído',
             details: error.response?.data || error.message,
             timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// ENDPOINT: /whatsapp-messenger/mark-read-with-typing
+// Marcar mensaje como leído con indicador de escritura
+router.post('/mark-read-with-typing', async (req, res) => {
+    const { message_id, access_token, phone_number_id } = req.body;
+    
+    console.log(' Marcando mensaje como leído con indicador de escritura:', {
+        message_id,
+        phone_number_id,
+        access_token_length: access_token?.length
+    });
+    
+    if (!message_id || !access_token || !phone_number_id) {
+        return res.status(400).json({
+            success: false,
+            error: 'Parámetros requeridos: message_id, access_token, phone_number_id'
+        });
+    }
+    
+    try {
+        const payload = {
+            messaging_product: "whatsapp",
+            status: "read",
+            message_id: message_id,
+            typing_indicator: {
+                type: "text"
+            }
+        };
+        
+        console.log(' Payload mark as read with typing:', JSON.stringify(payload, null, 2));
+        
+        const response = await axios.post(
+            `https://graph.facebook.com/v23.0/${phone_number_id}/messages`,
+            payload,
+            {
+                headers: {
+                    'Authorization': `Bearer ${access_token}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+        
+        console.log(' Mensaje marcado como leído con indicador:', response.data);
+        
+        res.json({
+            success: true,
+            message: 'Mensaje marcado como leído con indicador de escritura',
+            response_data: response.data,
+            sent_at: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error(' Error marcando mensaje como leído:', error.response?.data || error.message);
+        
+        res.status(500).json({
+            success: false,
+            error: 'Error marcando mensaje como leído con indicador',
+            details: error.response?.data || error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// ENDPOINT: /whatsapp-messenger/diagnose
+// Diagnosticar problemas comunes con el envío de mensajes
+router.post('/diagnose', async (req, res) => {
+    const { to, access_token, phone_number_id } = req.body;
+    
+    console.log(' Diagnosticando problemas de WhatsApp:', {
+        to,
+        phone_number_id,
+        access_token_length: access_token?.length
+    });
+    
+    if (!to || !access_token || !phone_number_id) {
+        return res.status(400).json({
+            success: false,
+            error: 'Parámetros requeridos: to, access_token, phone_number_id'
+        });
+    }
+    
+    const diagnostics = {
+        timestamp: new Date().toISOString(),
+        phone_number: to,
+        phone_number_id: phone_number_id,
+        checks: []
+    };
+    
+    try {
+        // 1. Verificar información del número de WhatsApp Business
+        console.log(' Verificando información del número de WhatsApp Business...');
+        try {
+            const phoneInfoResponse = await axios.get(
+                `https://graph.facebook.com/v21.0/${phone_number_id}`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${access_token}`
+                    }
+                }
+            );
+            
+            diagnostics.checks.push({
+                check: 'phone_number_info',
+                status: 'success',
+                message: 'Información del número obtenida correctamente',
+                data: phoneInfoResponse.data
+            });
+            
+        } catch (error) {
+            diagnostics.checks.push({
+                check: 'phone_number_info',
+                status: 'error',
+                message: 'No se pudo obtener información del número',
+                error: error.response?.data || error.message
+            });
+        }
+        
+        // 2. Verificar el estado del token de acceso
+        console.log(' Verificando token de acceso...');
+        try {
+            const tokenResponse = await axios.get(
+                `https://graph.facebook.com/v21.0/me`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${access_token}`
+                    }
+                }
+            );
+            
+            diagnostics.checks.push({
+                check: 'access_token',
+                status: 'success',
+                message: 'Token de acceso válido',
+                data: tokenResponse.data
+            });
+            
+        } catch (error) {
+            diagnostics.checks.push({
+                check: 'access_token',
+                status: 'error',
+                message: 'Token de acceso inválido o expirado',
+                error: error.response?.data || error.message
+            });
+        }
+        
+        // 3. Verificar formato del número de teléfono
+        console.log(' Verificando formato del número...');
+        const phoneRegex = /^[1-9]\d{1,14}$/;
+        const isValidFormat = phoneRegex.test(to);
+        
+        diagnostics.checks.push({
+            check: 'phone_format',
+            status: isValidFormat ? 'success' : 'warning',
+            message: isValidFormat 
+                ? 'Formato de número válido' 
+                : 'Formato de número puede ser incorrecto',
+            details: {
+                provided: to,
+                expected_format: 'Código de país + número sin + ni espacios (ej: 5491123456789)',
+                is_valid: isValidFormat
+            }
+        });
+        
+        // 4. Intentar enviar un mensaje de prueba muy simple
+        console.log(' Enviando mensaje de prueba...');
+        try {
+            const testPayload = {
+                messaging_product: "whatsapp",
+                to: to,
+                type: "text",
+                text: {
+                    body: " Mensaje de diagnóstico - " + new Date().toLocaleTimeString()
+                }
+            };
+            
+            const testResponse = await axios.post(
+                `https://graph.facebook.com/v21.0/${phone_number_id}/messages`,
+                testPayload,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${access_token}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+            
+            diagnostics.checks.push({
+                check: 'test_message',
+                status: 'success',
+                message: 'Mensaje de prueba enviado exitosamente al API',
+                data: testResponse.data,
+                note: 'Si no recibes este mensaje, el problema está en la configuración de WhatsApp Business'
+            });
+            
+        } catch (error) {
+            diagnostics.checks.push({
+                check: 'test_message',
+                status: 'error',
+                message: 'Error enviando mensaje de prueba',
+                error: error.response?.data || error.message
+            });
+        }
+        
+        // 5. Generar recomendaciones basadas en los resultados
+        const recommendations = [];
+        
+        const hasErrors = diagnostics.checks.some(check => check.status === 'error');
+        const hasWarnings = diagnostics.checks.some(check => check.status === 'warning');
+        
+        if (hasErrors) {
+            recommendations.push({
+                priority: 'high',
+                issue: 'Errores críticos detectados',
+                solution: 'Revisa los errores en las verificaciones anteriores. Problemas comunes: token expirado, número de WhatsApp Business no configurado correctamente.'
+            });
+        }
+        
+        if (hasWarnings) {
+            recommendations.push({
+                priority: 'medium',
+                issue: 'Formato de número de teléfono',
+                solution: 'Verifica que el número incluya el código de país sin el símbolo + (ej: 5491123456789 para Argentina)'
+            });
+        }
+        
+        // Recomendaciones generales para mensajes que no llegan
+        recommendations.push({
+            priority: 'high',
+            issue: 'Mensaje enviado exitosamente pero no recibido',
+            solution: 'Causas comunes: 1) Número no está en la lista de testers en Meta Developer Console, 2) Usuario no ha iniciado conversación en las últimas 24 horas, 3) Aplicación en modo desarrollo'
+        });
+        
+        recommendations.push({
+            priority: 'medium',
+            issue: 'Configuración de Meta Developer Console',
+            solution: 'Ve a Meta Developer Console > Tu App > WhatsApp > Configuración y agrega el número como "tester" o verifica que la app esté en modo producción'
+        });
+        
+        recommendations.push({
+            priority: 'low',
+            issue: 'Ventana de conversación de 24 horas',
+            solution: 'Para enviar mensajes proactivos, el usuario debe haber enviado un mensaje al número de WhatsApp Business en las últimas 24 horas'
+        });
+        
+        diagnostics.recommendations = recommendations;
+        diagnostics.summary = {
+            total_checks: diagnostics.checks.length,
+            successful: diagnostics.checks.filter(c => c.status === 'success').length,
+            warnings: diagnostics.checks.filter(c => c.status === 'warning').length,
+            errors: diagnostics.checks.filter(c => c.status === 'error').length
+        };
+        
+        console.log(' Diagnóstico completado:', diagnostics.summary);
+        
+        res.json({
+            success: true,
+            message: 'Diagnóstico completado',
+            diagnostics: diagnostics
+        });
+        
+    } catch (error) {
+        console.error(' Error en diagnóstico:', error);
+        
+        res.status(500).json({
+            success: false,
+            error: 'Error ejecutando diagnóstico',
+            details: error.message,
+            partial_diagnostics: diagnostics
         });
     }
 });
@@ -412,12 +563,6 @@ router.get('/test', (req, res) => {
         .btn-image:hover {
             background: #0088cc;
         }
-        .btn-typing {
-            background: #ff9500;
-        }
-        .btn-typing:hover {
-            background: #e6851a;
-        }
         .btn-read {
             background: #007aff;
         }
@@ -480,22 +625,22 @@ router.get('/test', (req, res) => {
 </head>
 <body>
     <div class="container">
-        <h1>📱 WhatsApp Cloud API - Pruebas</h1>
+        <h1> WhatsApp Cloud API - Pruebas</h1>
         
         <div class="info-box">
-            <h3>📋 Información Importante</h3>
+            <h3> Información Importante</h3>
             <p><strong>Para usar esta herramienta necesitas:</strong></p>
             <ul>
                 <li><strong>Access Token:</strong> Token obtenido del WhatsApp Embedded Signup</li>
                 <li><strong>Phone Number ID:</strong> ID del número de WhatsApp Business</li>
                 <li><strong>Recipient Number:</strong> Número de teléfono del destinatario (formato: 5491123456789)</li>
             </ul>
-            <p><small>💡 Los números deben incluir código de país sin el símbolo +</small></p>
+            <p><small> Los números deben incluir código de país sin el símbolo +</small></p>
         </div>
 
         <!-- Configuración Global -->
         <div class="section">
-            <h3>⚙️ Configuración Global</h3>
+            <h3> Configuración Global</h3>
             <div class="form-group">
                 <label for="access_token">Access Token:</label>
                 <input type="text" id="access_token" name="access_token" 
@@ -517,7 +662,7 @@ router.get('/test', (req, res) => {
 
         <!-- Enviar Mensaje de Texto -->
         <div class="section">
-            <h3>💬 Enviar Mensaje de Texto</h3>
+            <h3> Enviar Mensaje de Texto</h3>
             <div class="form-group">
                 <label for="message_text">Mensaje:</label>
                 <textarea id="message_text" name="message_text" 
@@ -525,13 +670,13 @@ router.get('/test', (req, res) => {
             </div>
             
             <button type="button" class="btn" onclick="sendTextMessage()">
-                📝 Enviar Mensaje de Texto
+                Enviar Mensaje de Texto
             </button>
         </div>
 
         <!-- Enviar Imagen -->
         <div class="section">
-            <h3>🖼️ Enviar Imagen</h3>
+            <h3> Enviar Imagen</h3>
             <div class="form-group">
                 <label for="image_url">URL de la Imagen:</label>
                 <input type="url" id="image_url" name="image_url" 
@@ -545,25 +690,13 @@ router.get('/test', (req, res) => {
             </div>
             
             <button type="button" class="btn btn-image" onclick="sendImageMessage()">
-                📷 Enviar Imagen
-            </button>
-        </div>
-
-        <!-- Indicadores de Escritura -->
-        <div class="section">
-            <h3>⌨️ Indicadores de Escritura</h3>
-            <button type="button" class="btn btn-typing" onclick="sendTypingOn()">
-                ⌨️ Activar "Escribiendo..."
-            </button>
-            
-            <button type="button" class="btn btn-typing" onclick="sendTypingOff()">
-                ⏹️ Desactivar "Escribiendo..."
+                Enviar Imagen
             </button>
         </div>
 
         <!-- Marcar como Leído -->
         <div class="section">
-            <h3>👁️ Marcar Mensaje como Leído</h3>
+            <h3> 📖 Marcar Mensaje como Leído</h3>
             <div class="form-group">
                 <label for="message_id_read">Message ID:</label>
                 <input type="text" id="message_id_read" name="message_id_read" 
@@ -571,7 +704,29 @@ router.get('/test', (req, res) => {
             </div>
             
             <button type="button" class="btn btn-read" onclick="markMessageAsRead()">
-                ✅ Marcar como Leído
+                Marcar como Leído
+            </button>
+        </div>
+
+        <!-- Marcar como Leído con Indicador de Escritura -->
+        <div class="section">
+            <h3> ✍️ Marcar como Leído + Indicador de Escritura</h3>
+            <div class="form-group">
+                <label for="message_id_typing">Message ID:</label>
+                <input type="text" id="message_id_typing" name="message_id_typing" 
+                       placeholder="ID del mensaje a marcar como leído con indicador de escritura" required>
+            </div>
+            
+            <button type="button" class="btn btn-read" onclick="markMessageAsReadWithTyping()">
+                📖✍️ Marcar como Leído + Indicador
+            </button>
+        </div>
+
+        <!-- Diagnóstico -->
+        <div class="section">
+            <h3> Diagnóstico</h3>
+            <button type="button" class="btn" onclick="runDiagnostics()">
+                Ejecutar Diagnóstico
             </button>
         </div>
 
@@ -664,52 +819,6 @@ router.get('/test', (req, res) => {
             }
         }
 
-        async function sendTypingOn() {
-            const config = getGlobalConfig();
-            if (!validateGlobalConfig(config)) return;
-            
-            showLoading();
-            
-            try {
-                const response = await fetch('/whatsapp-messenger/typing-on', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(config)
-                });
-                
-                const result = await response.json();
-                showResults(result, response.ok);
-                
-            } catch (error) {
-                showResults({ error: error.message }, false);
-            }
-        }
-
-        async function sendTypingOff() {
-            const config = getGlobalConfig();
-            if (!validateGlobalConfig(config)) return;
-            
-            showLoading();
-            
-            try {
-                const response = await fetch('/whatsapp-messenger/typing-off', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(config)
-                });
-                
-                const result = await response.json();
-                showResults(result, response.ok);
-                
-            } catch (error) {
-                showResults({ error: error.message }, false);
-            }
-        }
-
         async function markMessageAsRead() {
             const config = getGlobalConfig();
             if (!validateGlobalConfig(config)) return;
@@ -744,6 +853,122 @@ router.get('/test', (req, res) => {
                 showResults({ error: error.message }, false);
             }
         }
+
+        async function markMessageAsReadWithTyping() {
+            const config = getGlobalConfig();
+            if (!validateGlobalConfig(config)) return;
+
+            const message_id = document.getElementById('message_id_typing').value;
+            if (!message_id) {
+                alert('Por favor proporciona un Message ID');
+                return;
+            }
+
+            const formData = {
+                access_token: config.access_token,
+                phone_number_id: config.phone_number_id,
+                message_id: message_id
+            };
+            
+            showLoading();
+            
+            try {
+                const response = await fetch('/whatsapp-messenger/mark-read-with-typing', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                const result = await response.json();
+                showResults(result, response.ok);
+                
+            } catch (error) {
+                showResults({ error: error.message }, false);
+            }
+        }
+
+        async function runDiagnostics() {
+            const config = getGlobalConfig();
+            if (!validateGlobalConfig(config)) return;
+            
+            showLoading();
+            
+            try {
+                const response = await fetch('/whatsapp-messenger/diagnose', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(config)
+                });
+                
+                const result = await response.json();
+                showDiagnosticResults(result, response.ok);
+                
+            } catch (error) {
+                showResults({ error: error.message }, false);
+            }
+        }
+
+        function showDiagnosticResults(data, success) {
+            const results = document.getElementById('results');
+            results.style.display = 'block';
+            
+            const diagnostics = data.diagnostics;
+            const summary = diagnostics.summary;
+            
+            let html = '<div class="success">' +
+                '<h3>🔍 Diagnóstico Completado</h3>' +
+                '<p><strong>Resumen:</strong> ' + summary.successful + '/' + summary.total_checks + ' verificaciones exitosas</p>';
+            
+            if (summary.errors > 0) {
+                html += '<p style="color: #d32f2f;"><strong>Errores:</strong> ' + summary.errors + '</p>';
+            }
+            
+            if (summary.warnings > 0) {
+                html += '<p style="color: #f57c00;"><strong>Advertencias:</strong> ' + summary.warnings + '</p>';
+            }
+            
+            html += '</div><h4>📋 Verificaciones Realizadas:</h4>';
+            
+            diagnostics.checks.forEach(check => {
+                const statusIcon = check.status === 'success' ? '✅' : 
+                                 check.status === 'warning' ? '⚠️' : '❌';
+                const statusClass = check.status === 'success' ? 'success' : 
+                                  check.status === 'warning' ? 'info-box' : 'error';
+                
+                html += '<div class="' + statusClass + '" style="margin: 10px 0;">' +
+                        '<h5>' + statusIcon + ' ' + check.message + '</h5>';
+                
+                if (check.note) {
+                    html += '<p><em>' + check.note + '</em></p>';
+                }
+                
+                if (check.details) {
+                    html += '<div class="json-display">' + JSON.stringify(check.details, null, 2) + '</div>';
+                }
+                
+                html += '</div>';
+            });
+            
+            html += '<h4>💡 Recomendaciones:</h4>';
+            
+            diagnostics.recommendations.forEach(rec => {
+                const priorityColor = rec.priority === 'high' ? '#d32f2f' : 
+                                    rec.priority === 'medium' ? '#f57c00' : '#1976d2';
+                
+                html += '<div class="info-box" style="border-left: 4px solid ' + priorityColor + ';">' +
+                        '<h5 style="color: ' + priorityColor + ';">' + rec.issue + '</h5>' +
+                        '<p>' + rec.solution + '</p>' +
+                        '</div>';
+            });
+            
+            html += '<div class="json-display">' + JSON.stringify(data, null, 2) + '</div>';
+            
+            results.innerHTML = html;
+        }
         
         function showLoading() {
             const results = document.getElementById('results');
@@ -759,13 +984,17 @@ router.get('/test', (req, res) => {
             const statusIcon = success ? '✅' : '❌';
             const statusText = success ? 'Operación Exitosa' : 'Error en la Operación';
             
-            results.innerHTML = \`
-                <div class="\${statusClass}">
-                    <h3>\${statusIcon} \${statusText}</h3>
-                    \${success && data.message_id ? '<p><strong>Message ID:</strong> ' + data.message_id + '</p>' : ''}
-                </div>
-                <div class="json-display">\${JSON.stringify(data, null, 2)}</div>
-            \`;
+            let html = '<div class="' + statusClass + '">' +
+                       '<h3>' + statusIcon + ' ' + statusText + '</h3>';
+            
+            if (success && data.message_id) {
+                html += '<p><strong>Message ID:</strong> ' + data.message_id + '</p>';
+            }
+            
+            html += '</div>' +
+                    '<div class="json-display">' + JSON.stringify(data, null, 2) + '</div>';
+            
+            results.innerHTML = html;
         }
     </script>
 </body>

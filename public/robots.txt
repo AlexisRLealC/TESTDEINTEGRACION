@@ -1,0 +1,13 @@
+User-agent: *
+Disallow: /api/
+Disallow: /webhook
+Disallow: /.env
+Disallow: /node_modules/
+
+Allow: /
+Allow: /whatsapp-messenger/test
+Allow: /instagram/
+Allow: /tiendanube/
+
+# MVP - Integration Platform
+# https://github.com/AlexisRLealC/TESTDEINTEGRACION

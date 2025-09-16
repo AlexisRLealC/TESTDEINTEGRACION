@@ -28,7 +28,7 @@ window.fbAsyncInit = function() {
     
     const signupBtn = document.getElementById('whatsapp-signup-btn');
     signupBtn.disabled = false;
-    signupBtn.innerHTML = '📱 Iniciar WhatsApp Embedded Signup';
+    signupBtn.innerHTML = '📱 Conectar WhatsApp Business';
 };
 
 // ===================================================================
@@ -90,12 +90,13 @@ window.addEventListener('message', (event) => {
 // - Este código debe intercambiarse rápidamente por un token de acceso
 // - Si no hay authResponse, significa error o cancelación del usuario
 const fbLoginCallback = (response) => {
-    console.log('📱 Respuesta de FB.login:', response);
+    console.log('📱 Respuesta completa de FB.login:', JSON.stringify(response, null, 2));
     
     const resultsDiv = document.getElementById('results');
     resultsDiv.style.display = 'block';
     
-    if (response.authResponse) {
+    // Verificar si hay authResponse con código
+    if (response.authResponse && response.authResponse.code) {
         const code = response.authResponse.code;
         console.log('✅ Código de autorización recibido:', code);
         
@@ -150,29 +151,239 @@ const fbLoginCallback = (response) => {
                 </div>
             `;
         });
-    } else {
-        console.log('❌ Error o cancelación del usuario:', response);
+    } 
+    // Verificar si es un estado "connected" sin authResponse (posible flujo exitoso)
+    else if (response.status === 'connected' && !response.authResponse) {
+        console.log('⚠️ Estado "connected" sin authResponse - posible flujo exitoso pero sin código');
         resultsDiv.innerHTML = `
             <div class="warning">
-                <h3>⚠️ Flujo Cancelado o Error</h3>
-                <p>El usuario canceló el flujo o ocurrió un error:</p>
+                <h3>⚠️ Flujo Completado sin Código</h3>
+                <p>El flujo parece haberse completado (status: connected) pero no se recibió código de autorización.</p>
                 <div class="json-display">${JSON.stringify(response, null, 2)}</div>
+                <p><small>Esto puede indicar que el usuario ya está autorizado o hay un problema de configuración.</small></p>
+                <button onclick="checkFBStatus()" class="btn btn-secondary">🔍 Verificar Estado de Facebook</button>
+            </div>
+        `;
+    }
+    // Verificar si el usuario canceló explícitamente
+    else if (response.status === 'not_authorized' || response.status === 'unknown') {
+        console.log('❌ Usuario no autorizado o estado desconocido:', response);
+        
+        // Distinguir entre cancelación real y error técnico
+        const isCancellation = response.status === 'not_authorized';
+        const isUnknownError = response.status === 'unknown' && !response.authResponse;
+        
+        if (isCancellation) {
+            resultsDiv.innerHTML = `
+                <div class="warning">
+                    <h3>⚠️ Autorización Denegada</h3>
+                    <p>El usuario no autorizó la aplicación o canceló el flujo.</p>
+                    <div class="json-display">${JSON.stringify(response, null, 2)}</div>
+                    <p><small>Para usar WhatsApp Business API, es necesario completar el proceso de autorización.</small></p>
+                </div>
+            `;
+        } else if (isUnknownError) {
+            resultsDiv.innerHTML = `
+                <div class="error">
+                    <h3>🔍 Estado Desconocido Detectado</h3>
+                    <p>Se recibió un estado "unknown" con authResponse null. Esto puede indicar:</p>
+                    <ul>
+                        <li>El popup se cerró antes de completar el flujo</li>
+                        <li>Problema de configuración en Meta Developer Console</li>
+                        <li>Dominio no autorizado para la aplicación</li>
+                        <li>El flujo se completó pero hubo un error en la comunicación</li>
+                    </ul>
+                    <div class="json-display">${JSON.stringify(response, null, 2)}</div>
+                    <p><small><strong>Sugerencia:</strong> Verifica la configuración del dominio en Meta Developer Console y vuelve a intentar.</small></p>
+                    <button onclick="checkFBStatus()" class="btn btn-secondary">🔍 Verificar Estado de Facebook</button>
+                </div>
+            `;
+        }
+    }
+    // Cualquier otro caso no manejado
+    else {
+        console.log('❓ Respuesta no reconocida:', response);
+        resultsDiv.innerHTML = `
+            <div class="warning">
+                <h3>❓ Respuesta No Reconocida</h3>
+                <p>Se recibió una respuesta que no coincide con los patrones esperados:</p>
+                <div class="json-display">${JSON.stringify(response, null, 2)}</div>
+                <p><small>Por favor, reporta este caso para mejorar el manejo de errores.</small></p>
+                <button onclick="checkFBStatus()" class="btn btn-secondary">🔍 Verificar Estado de Facebook</button>
             </div>
         `;
     }
 };
 
-// ===================================================================
-// LAUNCH METHOD - Iniciar el flujo de WhatsApp Embedded Signup
-// ===================================================================
-// Esta función lanza el flujo oficial de Embedded Signup usando FB.login()
-const startEmbeddedSignup = () => {
-    if (!sdkReady) {
-        alert('⏳ El SDK de Facebook aún se está cargando. Espera un momento.');
+// Nueva función para verificar el estado actual de Facebook
+const checkFBStatus = () => {
+    console.log('🔍 Verificando estado actual de Facebook...');
+    
+    // Verificar si FB está disponible
+    if (typeof FB === 'undefined') {
+        console.error('❌ Facebook SDK no está disponible');
+        const statusDiv = document.createElement('div');
+        statusDiv.className = 'error';
+        statusDiv.innerHTML = `
+            <h4>❌ Error: Facebook SDK No Disponible</h4>
+            <p>El SDK de Facebook no se ha cargado correctamente. Esto puede deberse a:</p>
+            <ul>
+                <li>Bloqueador de anuncios o extensiones del navegador</li>
+                <li>Problemas de conectividad</li>
+                <li>Error en la carga del script de Facebook</li>
+            </ul>
+            <p><small>Intenta recargar la página o deshabilitar extensiones temporalmente.</small></p>
+        `;
+        document.getElementById('results').appendChild(statusDiv);
         return;
     }
     
+    // Mostrar indicador de carga
+    const loadingDiv = document.createElement('div');
+    loadingDiv.className = 'info';
+    loadingDiv.id = 'fb-status-loading';
+    loadingDiv.innerHTML = `
+        <h4>🔍 Verificando Estado de Facebook...</h4>
+        <p>Consultando el estado actual del login...</p>
+    `;
+    document.getElementById('results').appendChild(loadingDiv);
+    
+    try {
+        FB.getLoginStatus((response) => {
+            console.log('📊 Estado actual de FB:', response);
+            
+            // Remover indicador de carga
+            const loading = document.getElementById('fb-status-loading');
+            if (loading) {
+                loading.remove();
+            }
+            
+            const statusDiv = document.createElement('div');
+            statusDiv.className = 'info';
+            
+            // Interpretar el estado para el usuario
+            let statusMessage = '';
+            switch (response.status) {
+                case 'connected':
+                    statusMessage = '✅ Usuario conectado a Facebook';
+                    break;
+                case 'not_authorized':
+                    statusMessage = '⚠️ Usuario no ha autorizado la aplicación';
+                    break;
+                case 'unknown':
+                    statusMessage = '❓ Estado desconocido - Usuario no logueado o error';
+                    break;
+                default:
+                    statusMessage = `❓ Estado no reconocido: ${response.status}`;
+            }
+            
+            statusDiv.innerHTML = `
+                <h4>📊 Estado Actual de Facebook</h4>
+                <p><strong>${statusMessage}</strong></p>
+                <div class="json-display">${JSON.stringify(response, null, 2)}</div>
+                <p><small>Timestamp: ${new Date().toLocaleString()}</small></p>
+            `;
+            
+            document.getElementById('results').appendChild(statusDiv);
+        }, true); // true = forzar verificación desde servidor
+        
+    } catch (error) {
+        console.error('❌ Error al verificar estado de FB:', error);
+        
+        // Remover indicador de carga
+        const loading = document.getElementById('fb-status-loading');
+        if (loading) {
+            loading.remove();
+        }
+        
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'error';
+        errorDiv.innerHTML = `
+            <h4>❌ Error al Verificar Estado</h4>
+            <p>No se pudo consultar el estado de Facebook: ${error.message}</p>
+            <p><small>Verifica tu conexión a internet y que Facebook no esté bloqueado.</small></p>
+        `;
+        document.getElementById('results').appendChild(errorDiv);
+    }
+};
+
+// Función para iniciar el flujo de WhatsApp Embedded Signup
+// - Utiliza FB.login con configuración específica para WhatsApp Business
+// - Maneja la UI durante el proceso y refresca el QR periódicamente
+const startEmbeddedSignup = () => {
     console.log('🚀 Iniciando WhatsApp Embedded Signup...');
+    
+    // Actualizar UI para mostrar que el proceso está iniciando
+    updateUI('Iniciando proceso de registro...', 'info');
+    
+    // Verificar si el SDK de Facebook está cargado
+    if (typeof FB === 'undefined') {
+        console.error('❌ Facebook SDK no está cargado');
+        updateUI('Error: Facebook SDK no está disponible', 'error');
+        return;
+    }
+    
+    // Configurar el callback antes de iniciar el login
+    let popupWindow = null;
+    let callbackReceived = false;
+    let timeoutId = null;
+    
+    // Timeout para detectar si el popup no responde
+    timeoutId = setTimeout(() => {
+        if (!callbackReceived) {
+            console.log('⏰ Timeout: No se recibió respuesta del popup en 60 segundos');
+            fbLoginCallback({
+                status: 'timeout',
+                authResponse: null,
+                error: 'Timeout esperando respuesta del popup'
+            });
+        }
+    }, 60000); // 60 segundos timeout
+    
+    // Wrapper del callback original para manejar timing
+    const timedCallback = (response) => {
+        callbackReceived = true;
+        if (timeoutId) {
+            clearTimeout(timeoutId);
+        }
+        
+        // Agregar timestamp para debugging
+        response._timestamp = new Date().toISOString();
+        response._userAgent = navigator.userAgent;
+        
+        fbLoginCallback(response);
+    };
+    
+    console.log('📱 Llamando FB.login con configuración:', {
+        config_id: window.APP_CONFIG.CONFIGURATION_ID,
+        response_type: 'code',
+        override_default_response_type: true,
+        display: "popup"
+    });
+    
+    try {
+        // Intentar abrir el popup de Facebook
+        FB.login(timedCallback, {
+            config_id: window.APP_CONFIG.CONFIGURATION_ID,
+            response_type: 'code',
+            override_default_response_type: true,
+            display: "popup",
+            extras: {
+                setup: {},
+                FeatureType: 'whatsapp_business_app_onboarding',
+                sessionInfoVersion: '3'
+            }
+        });
+        
+        console.log('✅ FB.login llamado exitosamente, esperando respuesta...');
+        
+    } catch (error) {
+        console.error('❌ Error al llamar FB.login:', error);
+        if (timeoutId) {
+            clearTimeout(timeoutId);
+        }
+        updateUI(`Error al iniciar el flujo: ${error.message}`, 'error');
+    }
     
     // Limpiar intervalo anterior si existe
     if (qrRefreshInterval) {
@@ -182,18 +393,6 @@ const startEmbeddedSignup = () => {
     // Limpiar resultados anteriores
     document.getElementById('results').style.display = 'none';
     document.getElementById('signup-results').style.display = 'none';
-    
-    // Configuración oficial según documentación de Meta
-    FB.login(fbLoginCallback, {
-        config_id: window.APP_CONFIG.CONFIGURATION_ID,
-        response_type: 'code',
-        override_default_response_type: true,
-        extras: {
-            setup: {},
-            featureType: 'whatsapp_business_app_onboarding',
-            sessionInfoVersion: '3'
-        }
-    });
     
     // Auto-regenerar QR cada 5 minutos para evitar expiración
     qrRefreshInterval = setInterval(() => {
@@ -216,14 +415,17 @@ const startEmbeddedSignup = () => {
         document.body.appendChild(notification);
         
         // Reiniciar el flujo
-        FB.login(fbLoginCallback, {
+        FB.login(timedCallback, {
             config_id: window.APP_CONFIG.CONFIGURATION_ID,
             response_type: 'code',
             override_default_response_type: true,
+            scope: 'whatsapp_business_management,whatsapp_business_messaging',
             extras: {
-                setup: {},
-                featureType: '',
-                sessionInfoVersion: '3'
+                setup: {
+                    // Configuración para flujo directo sin pantallas adicionales
+                    'skip_confirmation': true,
+                    'skip_business_selection': true
+                }
             }
         });
         

@@ -323,6 +323,35 @@ router.post('/instagram/send-message', async (req, res) => {
     }
 });
 
+// Callback endpoint para WhatsApp Embedded Signup
+router.get('/callback', (req, res) => {
+    console.log('📞 Callback recibido de WhatsApp:', req.query);
+    
+    // Responder con página simple para cerrar ventana
+    res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Callback - MVP Integration Platform</title>
+            <style>
+                body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+                .success { color: #25d366; }
+            </style>
+        </head>
+        <body>
+            <h2 class="success">✅ Callback recibido</h2>
+            <p>Puedes cerrar esta ventana.</p>
+            <script>
+                // Intentar cerrar la ventana automáticamente
+                setTimeout(() => {
+                    window.close();
+                }, 2000);
+            </script>
+        </body>
+        </html>
+    `);
+});
+
 // ===================================================================
 // WEBHOOK ENDPOINTS - Requeridos para WhatsApp Embedded Signup
 // ===================================================================
