@@ -8,7 +8,7 @@ $RECYCLE.BIN/
 .vscode/
 
 # Archivos de entorno
-
+.env
 
 
 # Node.js
