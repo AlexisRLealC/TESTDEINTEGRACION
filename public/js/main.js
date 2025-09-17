@@ -90,80 +90,129 @@ window.addEventListener('message', (event) => {
 // - Este código debe intercambiarse rápidamente por un token de acceso
 // - Si no hay authResponse, significa error o cancelación del usuario
 const fbLoginCallback = (response) => {
-    console.log('📱 Respuesta completa de FB.login:', JSON.stringify(response, null, 2));
+    console.log('🔥 === CALLBACK COMPLETO DE WHATSAPP ===');
+    console.log('📊 Respuesta completa recibida:', response);
+    console.log('🔍 Tipo de respuesta:', typeof response);
+    console.log('📋 Propiedades disponibles:', Object.keys(response));
+    
+    // Log detallado de cada propiedad importante
+    if (response.status) {
+        console.log('📌 Status:', response.status);
+    }
+    
+    if (response.authResponse) {
+        console.log('🔐 AuthResponse encontrado:', response.authResponse);
+        console.log('🔑 Código disponible:', !!response.authResponse.code);
+        if (response.authResponse.code) {
+            console.log('📝 Código (primeros 20 chars):', response.authResponse.code.substring(0, 20) + '...');
+        }
+    } else {
+        console.log('⚠️ NO HAY authResponse en la respuesta');
+    }
+    
+    // Log de metadatos adicionales
+    if (response._timestamp) {
+        console.log('⏰ Timestamp:', response._timestamp);
+    }
+    
+    if (response._userAgent) {
+        console.log('🌐 User Agent:', response._userAgent);
+    }
+    
+    console.log('🔥 === FIN CALLBACK WHATSAPP ===');
     
     const resultsDiv = document.getElementById('results');
     resultsDiv.style.display = 'block';
     
-    // Verificar si hay authResponse con código
+    // Limpiar intervalo de QR si existe
+    if (qrRefreshInterval) {
+        clearInterval(qrRefreshInterval);
+        qrRefreshInterval = null;
+    }
+    
+    // Verificar si el flujo fue exitoso (hay código de intercambio)
     if (response.authResponse && response.authResponse.code) {
+        console.log('✅ Flujo exitoso - Código recibido para intercambio');
+        
         const code = response.authResponse.code;
-        console.log('✅ Código de autorización recibido:', code);
         
         resultsDiv.innerHTML = `
             <div class="success">
-                <h3>✅ Autorización Exitosa</h3>
-                <p>Se recibió el código de autorización. Procesando...</p>
-                <div class="json-display">${JSON.stringify(response.authResponse, null, 2)}</div>
-                <p><small>⏱️ El código expira en 30 segundos - Intercambiando automáticamente...</small></p>
+                <h3>✅ WhatsApp Embedded Signup Exitoso</h3>
+                <p><strong>Estado:</strong> ${response.status}</p>
+                <p><strong>Código recibido:</strong> ${code.substring(0, 20)}...</p>
+                <p><strong>Timestamp:</strong> ${response._timestamp || 'No disponible'}</p>
+                
+                <div style="background: #d1ecf1; padding: 15px; border-radius: 5px; margin: 15px 0; color: #0c5460;">
+                    <h4>🔄 Intercambiando código por token...</h4>
+                    <p>Enviando código al servidor para obtener access token.</p>
+                </div>
+                
+                <div class="json-display">
+                    <strong>Respuesta completa:</strong>
+                    ${JSON.stringify(response, null, 2)}
+                </div>
             </div>
         `;
         
-        // Enviar código al servidor para intercambio inmediato
+        // Intercambiar código por token
         fetch('/api/exchange-token', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ code: code })
         })
         .then(response => response.json())
         .then(data => {
             console.log('🔄 Respuesta del intercambio de token:', data);
             
-            if (data.success) {
-                resultsDiv.innerHTML = `
-                    <div class="success">
-                        <h3>🎉 Token Intercambiado Exitosamente</h3>
-                        <p><strong>Estado:</strong> Cliente registrado correctamente</p>
-                        <div class="json-display">${JSON.stringify(data, null, 2)}</div>
-                        <p><small>✅ El cliente ya puede usar WhatsApp Business API</small></p>
+            resultsDiv.innerHTML = `
+                <div class="${data.success ? 'success' : 'error'}">
+                    <h3>${data.success ? '✅' : '❌'} Intercambio de Token</h3>
+                    <p><strong>Mensaje:</strong> ${data.message}</p>
+                    
+                    ${data.success ? `
+                        <div style="background: #d4edda; padding: 15px; border-radius: 5px; margin: 15px 0; color: #155724;">
+                            <h4>🎉 ¡WhatsApp Business Configurado!</h4>
+                            <p>Tu cuenta está lista para enviar mensajes.</p>
+                            ${data.token_data && data.token_data.access_token ? `
+                                <div style="background: #fff3cd; padding: 10px; border-radius: 5px; margin: 10px 0; color: #856404;">
+                                    <h5>🔑 Access Token Recibido:</h5>
+                                    <p><strong>Token:</strong> ${data.token_data.access_token.substring(0, 30)}...</p>
+                                    <p><strong>Tipo:</strong> ${data.token_data.token_type || 'bearer'}</p>
+                                    ${data.token_data.expires_in ? `<p><strong>Expira en:</strong> ${data.token_data.expires_in} segundos</p>` : ''}
+                                </div>
+                            ` : ''}
+                            ${data.next_steps ? `
+                                <p><strong>Próximos pasos:</strong></p>
+                                <ul>
+                                    ${data.next_steps.map(step => `<li>${step}</li>`).join('')}
+                                </ul>
+                            ` : ''}
+                        </div>
+                    ` : `
+                        <div style="background: #f8d7da; padding: 15px; border-radius: 5px; margin: 15px 0; color: #721c24;">
+                            <h4>❌ Error en Intercambio</h4>
+                            <p>${data.details || 'Error desconocido'}</p>
+                        </div>
+                    `}
+                    
+                    <div class="json-display">
+                        <strong>Respuesta del servidor:</strong>
+                        ${JSON.stringify(data, null, 2)}
                     </div>
-                `;
-            } else {
-                resultsDiv.innerHTML = `
-                    <div class="error">
-                        <h3>❌ Error en Intercambio de Token</h3>
-                        <p><strong>Error:</strong> ${data.error}</p>
-                        <div class="json-display">${JSON.stringify(data, null, 2)}</div>
-                        <p><small>Verifica que el servidor esté funcionando y que las credenciales sean correctas.</small></p>
-                    </div>
-                `;
-            }
+                </div>
+            `;
         })
         .catch(error => {
-            console.error('❌ Error en intercambio de token:', error);
+            console.error('❌ Error intercambiando token:', error);
             resultsDiv.innerHTML = `
                 <div class="error">
                     <h3>❌ Error de Conexión</h3>
-                    <p>No se pudo intercambiar el token: ${error.message}</p>
-                    <p><small>Verifica que el servidor esté funcionando y que las credenciales sean correctas.</small></p>
+                    <p>No se pudo intercambiar el código por token: ${error.message}</p>
+                    <p><strong>Código recibido:</strong> ${code.substring(0, 20)}...</p>
                 </div>
             `;
         });
-    } 
-    // Verificar si es un estado "connected" sin authResponse (posible flujo exitoso)
-    else if (response.status === 'connected' && !response.authResponse) {
-        console.log('⚠️ Estado "connected" sin authResponse - posible flujo exitoso pero sin código');
-        resultsDiv.innerHTML = `
-            <div class="warning">
-                <h3>⚠️ Flujo Completado sin Código</h3>
-                <p>El flujo parece haberse completado (status: connected) pero no se recibió código de autorización.</p>
-                <div class="json-display">${JSON.stringify(response, null, 2)}</div>
-                <p><small>Esto puede indicar que el usuario ya está autorizado o hay un problema de configuración.</small></p>
-                <button onclick="checkFBStatus()" class="btn btn-secondary">🔍 Verificar Estado de Facebook</button>
-            </div>
-        `;
     }
     // Verificar si el usuario canceló explícitamente
     else if (response.status === 'not_authorized' || response.status === 'unknown') {
@@ -176,29 +225,141 @@ const fbLoginCallback = (response) => {
         if (isCancellation) {
             resultsDiv.innerHTML = `
                 <div class="warning">
-                    <h3>⚠️ Autorización Denegada</h3>
-                    <p>El usuario no autorizó la aplicación o canceló el flujo.</p>
-                    <div class="json-display">${JSON.stringify(response, null, 2)}</div>
-                    <p><small>Para usar WhatsApp Business API, es necesario completar el proceso de autorización.</small></p>
+                    <h3>⚠️ Autorización Cancelada</h3>
+                    <p>El usuario canceló el proceso de autorización.</p>
+                    <p><strong>Estado:</strong> ${response.status}</p>
+                    <p><strong>Timestamp:</strong> ${response._timestamp || 'No disponible'}</p>
+                    
+                    <div style="background: #fff3cd; padding: 15px; border-radius: 5px; margin: 15px 0; color: #856404;">
+                        <h4>💡 ¿Qué hacer ahora?</h4>
+                        <p>Puedes intentar el proceso nuevamente haciendo click en el botón de WhatsApp.</p>
+                    </div>
+                    
+                    <div class="json-display">
+                        <strong>Respuesta completa:</strong>
+                        ${JSON.stringify(response, null, 2)}
+                    </div>
                 </div>
             `;
         } else if (isUnknownError) {
+            console.log('❓ Estado "unknown" detectado - analizando causa...');
+            
+            // Log adicional para debugging
+            console.log('🔍 Análisis detallado del estado unknown:');
+            console.log('  - authResponse presente:', !!response.authResponse);
+            console.log('  - Propiedades de response:', Object.keys(response));
+            console.log('  - User Agent:', response._userAgent);
+            console.log('  - Timestamp:', response._timestamp);
+            
+            // Verificar si hay algún código oculto o datos adicionales
+            if (response.authResponse) {
+                console.log('  - authResponse keys:', Object.keys(response.authResponse));
+                console.log('  - authResponse values:', response.authResponse);
+            }
+            
+            // Intentar obtener más información del estado de Facebook
+            if (typeof FB !== 'undefined') {
+                console.log('🔍 Intentando obtener estado actual de Facebook...');
+                FB.getLoginStatus((fbResponse) => {
+                    console.log('📊 Estado actual de FB después de unknown:', fbResponse);
+                }, true);
+            }
+            
             resultsDiv.innerHTML = `
                 <div class="error">
-                    <h3>🔍 Estado Desconocido Detectado</h3>
-                    <p>Se recibió un estado "unknown" con authResponse null. Esto puede indicar:</p>
-                    <ul>
-                        <li>El popup se cerró antes de completar el flujo</li>
-                        <li>Problema de configuración en Meta Developer Console</li>
-                        <li>Dominio no autorizado para la aplicación</li>
-                        <li>El flujo se completó pero hubo un error en la comunicación</li>
-                    </ul>
-                    <div class="json-display">${JSON.stringify(response, null, 2)}</div>
-                    <p><small><strong>Sugerencia:</strong> Verifica la configuración del dominio en Meta Developer Console y vuelve a intentar.</small></p>
-                    <button onclick="checkFBStatus()" class="btn btn-secondary">🔍 Verificar Estado de Facebook</button>
+                    <h3>❓ Estado Desconocido (Unknown)</h3>
+                    <p>Facebook devolvió un estado "unknown" que puede indicar varios problemas.</p>
+                    <p><strong>Estado:</strong> ${response.status}</p>
+                    <p><strong>Timestamp:</strong> ${response._timestamp || 'No disponible'}</p>
+                    
+                    <div style="background: #f8d7da; padding: 15px; border-radius: 5px; margin: 15px 0; color: #721c24;">
+                        <h4>🔧 Posibles Causas del Estado "Unknown":</h4>
+                        <ul>
+                            <li><strong>Configuración de dominio:</strong> El dominio no está autorizado en Meta Developer Console</li>
+                            <li><strong>App Review:</strong> La app necesita revisión para ciertos permisos</li>
+                            <li><strong>Configuración de Login:</strong> Facebook Login for Business mal configurado</li>
+                            <li><strong>Popup bloqueado:</strong> El navegador bloqueó el popup de autorización</li>
+                            <li><strong>Usuario no logueado:</strong> El usuario no está logueado en Facebook</li>
+                            <li><strong>Permisos insuficientes:</strong> La app no tiene los permisos necesarios</li>
+                        </ul>
+                    </div>
+                    
+                    <div style="background: #fff3cd; padding: 15px; border-radius: 5px; margin: 15px 0; color: #856404;">
+                        <h4>✅ Pasos para Resolver:</h4>
+                        <ol>
+                            <li><strong>Verificar dominio:</strong> Agregar <code>${window.location.hostname}</code> a "Dominios de la app" en Meta Developer Console</li>
+                            <li><strong>Verificar configuración:</strong> Facebook Login for Business → Settings → Client OAuth settings</li>
+                            <li><strong>Verificar permisos:</strong> whatsapp_business_management, whatsapp_business_messaging</li>
+                            <li><strong>Probar en incógnito:</strong> Usar ventana de incógnito para descartar problemas de cache</li>
+                            <li><strong>Verificar popup:</strong> Asegurarse de que no hay bloqueadores de popup activos</li>
+                        </ol>
+                    </div>
+                    
+                    <div class="json-display">
+                        <strong>Respuesta completa para debugging:</strong>
+                        ${JSON.stringify(response, null, 2)}
+                    </div>
+                    
+                    <div style="margin-top: 15px;">
+                        <button onclick="checkFBStatus()" class="btn" style="background: #1877f2; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer;">
+                            🔍 Verificar Estado de Facebook
+                        </button>
+                    </div>
                 </div>
             `;
         }
+    }
+    // Manejar caso de timeout
+    else if (response.status === 'timeout') {
+        console.log('⏰ Timeout detectado en el flujo');
+        resultsDiv.innerHTML = `
+            <div class="warning">
+                <h3>⏰ Tiempo de Espera Agotado</h3>
+                <p>El popup no respondió en el tiempo esperado (60 segundos).</p>
+                <p><strong>Error:</strong> ${response.error || 'Timeout'}</p>
+                
+                <div style="background: #fff3cd; padding: 15px; border-radius: 5px; margin: 15px 0; color: #856404;">
+                    <h4>🔧 Posibles Causas:</h4>
+                    <ul>
+                        <li>Conexión a internet lenta</li>
+                        <li>Popup bloqueado por el navegador</li>
+                        <li>Problemas temporales con Facebook</li>
+                    </ul>
+                    <p><strong>Solución:</strong> Intenta nuevamente en unos momentos.</p>
+                </div>
+                
+                <div class="json-display">
+                    <strong>Respuesta completa:</strong>
+                    ${JSON.stringify(response, null, 2)}
+                </div>
+            </div>
+        `;
+    }
+    // Caso de respuesta conectada pero sin authResponse (problema común)
+    else if (response.status === 'connected' && !response.authResponse) {
+        console.log('⚠️ Estado conectado pero sin authResponse - problema conocido');
+        
+        // Intentar verificar el estado actual de Facebook
+        checkFBStatus();
+        
+        resultsDiv.innerHTML = `
+            <div class="warning">
+                <h3>⚠️ Respuesta Incompleta</h3>
+                <p>Facebook reporta estado "conectado" pero no proporcionó datos de autorización.</p>
+                <p><strong>Estado:</strong> ${response.status}</p>
+                <p><strong>Timestamp:</strong> ${response._timestamp || 'No disponible'}</p>
+                
+                <div style="background: #fff3cd; padding: 15px; border-radius: 5px; margin: 15px 0; color: #856404;">
+                    <h4>🔍 Verificando Estado...</h4>
+                    <p>Consultando el estado actual de Facebook para obtener más información.</p>
+                </div>
+                
+                <div class="json-display">
+                    <strong>Respuesta recibida:</strong>
+                    ${JSON.stringify(response, null, 2)}
+                </div>
+            </div>
+        `;
     }
     // Cualquier otro caso no manejado
     else {
@@ -206,108 +367,65 @@ const fbLoginCallback = (response) => {
         resultsDiv.innerHTML = `
             <div class="warning">
                 <h3>❓ Respuesta No Reconocida</h3>
-                <p>Se recibió una respuesta que no coincide con los patrones esperados:</p>
-                <div class="json-display">${JSON.stringify(response, null, 2)}</div>
-                <p><small>Por favor, reporta este caso para mejorar el manejo de errores.</small></p>
-                <button onclick="checkFBStatus()" class="btn btn-secondary">🔍 Verificar Estado de Facebook</button>
+                <p>Se recibió una respuesta que no coincide con los casos esperados.</p>
+                <p><strong>Estado:</strong> ${response.status || 'No disponible'}</p>
+                <p><strong>Timestamp:</strong> ${response._timestamp || 'No disponible'}</p>
+                
+                <div style="background: #e2e3e5; padding: 15px; border-radius: 5px; margin: 15px 0; color: #383d41;">
+                    <h4>🔍 Información de Debug</h4>
+                    <p>Esta información puede ser útil para diagnosticar el problema:</p>
+                </div>
+                
+                <div class="json-display">
+                    <strong>Respuesta completa:</strong>
+                    ${JSON.stringify(response, null, 2)}
+                </div>
             </div>
         `;
     }
 };
 
-// Nueva función para verificar el estado actual de Facebook
-const checkFBStatus = () => {
-    console.log('🔍 Verificando estado actual de Facebook...');
+// ===================================================================
+// UTILITY FUNCTIONS - Funciones auxiliares para UI
+// ===================================================================
+function updateUI(message, type = 'info') {
+    const resultsDiv = document.getElementById('results');
+    if (!resultsDiv) return;
     
-    // Verificar si FB está disponible
-    if (typeof FB === 'undefined') {
-        console.error('❌ Facebook SDK no está disponible');
-        const statusDiv = document.createElement('div');
-        statusDiv.className = 'error';
-        statusDiv.innerHTML = `
-            <h4>❌ Error: Facebook SDK No Disponible</h4>
-            <p>El SDK de Facebook no se ha cargado correctamente. Esto puede deberse a:</p>
-            <ul>
-                <li>Bloqueador de anuncios o extensiones del navegador</li>
-                <li>Problemas de conectividad</li>
-                <li>Error en la carga del script de Facebook</li>
-            </ul>
-            <p><small>Intenta recargar la página o deshabilitar extensiones temporalmente.</small></p>
-        `;
-        document.getElementById('results').appendChild(statusDiv);
-        return;
+    resultsDiv.style.display = 'block';
+    
+    let className = 'info-box';
+    let icon = 'ℹ️';
+    
+    switch (type) {
+        case 'error':
+            className = 'error';
+            icon = '❌';
+            break;
+        case 'success':
+            className = 'success';
+            icon = '✅';
+            break;
+        case 'warning':
+            className = 'warning';
+            icon = '⚠️';
+            break;
+        default:
+            className = 'info-box';
+            icon = 'ℹ️';
     }
     
-    // Mostrar indicador de carga
-    const loadingDiv = document.createElement('div');
-    loadingDiv.className = 'info';
-    loadingDiv.id = 'fb-status-loading';
-    loadingDiv.innerHTML = `
-        <h4>🔍 Verificando Estado de Facebook...</h4>
-        <p>Consultando el estado actual del login...</p>
+    resultsDiv.innerHTML = `
+        <div class="${className}">
+            <h3>${icon} ${type.charAt(0).toUpperCase() + type.slice(1)}</h3>
+            <p>${message}</p>
+        </div>
     `;
-    document.getElementById('results').appendChild(loadingDiv);
-    
-    try {
-        FB.getLoginStatus((response) => {
-            console.log('📊 Estado actual de FB:', response);
-            
-            // Remover indicador de carga
-            const loading = document.getElementById('fb-status-loading');
-            if (loading) {
-                loading.remove();
-            }
-            
-            const statusDiv = document.createElement('div');
-            statusDiv.className = 'info';
-            
-            // Interpretar el estado para el usuario
-            let statusMessage = '';
-            switch (response.status) {
-                case 'connected':
-                    statusMessage = '✅ Usuario conectado a Facebook';
-                    break;
-                case 'not_authorized':
-                    statusMessage = '⚠️ Usuario no ha autorizado la aplicación';
-                    break;
-                case 'unknown':
-                    statusMessage = '❓ Estado desconocido - Usuario no logueado o error';
-                    break;
-                default:
-                    statusMessage = `❓ Estado no reconocido: ${response.status}`;
-            }
-            
-            statusDiv.innerHTML = `
-                <h4>📊 Estado Actual de Facebook</h4>
-                <p><strong>${statusMessage}</strong></p>
-                <div class="json-display">${JSON.stringify(response, null, 2)}</div>
-                <p><small>Timestamp: ${new Date().toLocaleString()}</small></p>
-            `;
-            
-            document.getElementById('results').appendChild(statusDiv);
-        }, true); // true = forzar verificación desde servidor
-        
-    } catch (error) {
-        console.error('❌ Error al verificar estado de FB:', error);
-        
-        // Remover indicador de carga
-        const loading = document.getElementById('fb-status-loading');
-        if (loading) {
-            loading.remove();
-        }
-        
-        const errorDiv = document.createElement('div');
-        errorDiv.className = 'error';
-        errorDiv.innerHTML = `
-            <h4>❌ Error al Verificar Estado</h4>
-            <p>No se pudo consultar el estado de Facebook: ${error.message}</p>
-            <p><small>Verifica tu conexión a internet y que Facebook no esté bloqueado.</small></p>
-        `;
-        document.getElementById('results').appendChild(errorDiv);
-    }
-};
+}
 
-// Función para iniciar el flujo de WhatsApp Embedded Signup
+// ===================================================================
+// WHATSAPP EMBEDDED SIGNUP - Función para iniciar el flujo de WhatsApp Embedded Signup
+// ===================================================================
 // - Utiliza FB.login con configuración específica para WhatsApp Business
 // - Maneja la UI durante el proceso y refresca el QR periódicamente
 const startEmbeddedSignup = () => {
@@ -440,6 +558,33 @@ const startEmbeddedSignup = () => {
 };
 
 // ===================================================================
+// WHATSAPP EMBEDDED SIGNUP - Función de lanzamiento principal
+// ===================================================================
+function launchWhatsAppSignup() {
+    console.log('🚀 Lanzando WhatsApp Embedded Signup...');
+    
+    // Verificar configuración requerida
+    if (!window.APP_CONFIG || !window.APP_CONFIG.CONFIGURATION_ID) {
+        updateUI('Error: CONFIGURATION_ID no está configurado. Revisa tu archivo .env', 'error');
+        return;
+    }
+    
+    if (!window.APP_CONFIG.APP_ID) {
+        updateUI('Error: APP_ID no está configurado. Revisa tu archivo .env', 'error');
+        return;
+    }
+    
+    // Verificar que el SDK de Facebook esté cargado
+    if (typeof FB === 'undefined') {
+        updateUI('Error: Facebook SDK no está cargado. Verifica tu conexión a internet.', 'error');
+        return;
+    }
+    
+    // Llamar a la función principal de signup
+    startEmbeddedSignup();
+}
+
+// ===================================================================
 // INSTAGRAM LOGIN - Instagram Business Login (Directo)
 // ===================================================================
 // Implementación actualizada para usar Instagram Business Login directo
@@ -469,9 +614,13 @@ function launchInstagramLogin() {
         <div class="info-box">
             <h3>📸 Instagram Business Login (Directo)</h3>
             <p>Iniciando proceso de autorización oficial de Instagram...</p>
-            <p><strong>Flujo:</strong> Instagram API with Instagram Login</p>
-            <p><strong>Método:</strong> Business Login for Instagram</p>
-            <p><strong>Endpoint:</strong> instagram.com/oauth/authorize</p>
+            <p><strong>Funcionalidades disponibles:</strong></p>
+            <ul style="text-align: left;">
+                <li>📤 Envío de mensajes de texto</li>
+                <li>🖼️ Envío de imágenes con caption</li>
+                <li>⌨️ Indicadores de escritura (typing on/off)</li>
+                <li>✅ Marcar mensajes como leídos</li>
+            </ul>
             
             <h4>🔐 Permisos Solicitados (Nuevos Scopes 2025):</h4>
             <ul style="text-align: left;">
@@ -643,10 +792,268 @@ function checkStatus() {
         });
 }
 
+// ===================================================================
+// WHATSAPP API TESTER - Función para abrir el tester de WhatsApp API
+// ===================================================================
+function openWhatsAppTester() {
+    console.log('💬 Abriendo WhatsApp API Tester...');
+    
+    // Mostrar información del proceso
+    const resultsDiv = document.getElementById('results');
+    resultsDiv.style.display = 'block';
+    resultsDiv.innerHTML = `
+        <div class="info-box">
+            <h3>💬 WhatsApp Cloud API Tester</h3>
+            <p>Abriendo interfaz de pruebas para WhatsApp Business Cloud API...</p>
+            <p><strong>Funcionalidades disponibles:</strong></p>
+            <ul style="text-align: left;">
+                <li>📤 Envío de mensajes de texto</li>
+                <li>🖼️ Envío de imágenes con caption</li>
+                <li>⌨️ Indicadores de escritura (typing on/off)</li>
+                <li>✅ Marcar mensajes como leídos</li>
+            </ul>
+            
+            <div style="background: #d1ecf1; padding: 10px; border-radius: 5px; margin: 10px 0; color: #0c5460;">
+                <p><strong>🔗 Redirigiendo...</strong> Se abrirá la página de pruebas en una nueva ventana</p>
+                <p><strong>📋 Requisitos:</strong> Access Token y Phone Number ID de WhatsApp Business</p>
+            </div>
+        </div>
+    `;
+    
+    // Abrir en nueva ventana/pestaña
+    window.open('/whatsapp-messenger/test', '_blank');
+}
+
 // Event listeners
 document.addEventListener('DOMContentLoaded', function() {
     const signupBtn = document.getElementById('whatsapp-signup-btn');
     if (signupBtn) {
-        signupBtn.addEventListener('click', startEmbeddedSignup);
+        signupBtn.addEventListener('click', launchWhatsAppSignup);
     }
 });
+
+// ===================================================================
+// TOKEN MANAGEMENT - Gestión automática de tokens en frontend
+// ===================================================================
+
+// Función para verificar información de un token
+async function checkTokenInfo(accessToken) {
+    console.log('🔍 Verificando información del token...');
+    
+    try {
+        const response = await fetch(`/api/token-info/${encodeURIComponent(accessToken)}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            console.log('✅ Información del token:', data.token_info);
+            return data.token_info;
+        } else {
+            console.error('❌ Error verificando token:', data.error);
+            return null;
+        }
+    } catch (error) {
+        console.error('❌ Error de conexión verificando token:', error);
+        return null;
+    }
+}
+
+// Función para renovar un token automáticamente
+async function refreshToken(accessToken) {
+    console.log('🔄 Iniciando renovación automática de token...');
+    
+    try {
+        const response = await fetch('/api/refresh-token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ access_token: accessToken })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            console.log('✅ Token renovado exitosamente:', {
+                old_expiry: data.old_token_info.expires_at_formatted,
+                new_expiry: data.new_token_data.expires_at_formatted,
+                extension_days: data.refresh_summary.extension_days
+            });
+            
+            return {
+                success: true,
+                new_token: data.new_token_data.access_token,
+                expires_at: data.new_token_data.expires_at,
+                extension_days: data.refresh_summary.extension_days
+            };
+        } else {
+            console.error('❌ Error renovando token:', data.error);
+            return { success: false, error: data.error };
+        }
+    } catch (error) {
+        console.error('❌ Error de conexión renovando token:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+// Función para verificar y renovar token automáticamente si es necesario
+async function autoRefreshTokenIfNeeded(accessToken) {
+    console.log('🤖 Verificando si el token necesita renovación automática...');
+    
+    const tokenInfo = await checkTokenInfo(accessToken);
+    
+    if (!tokenInfo) {
+        return { success: false, error: 'No se pudo verificar el token' };
+    }
+    
+    if (!tokenInfo.is_valid) {
+        console.log('❌ Token no válido, no se puede renovar');
+        return { success: false, error: 'Token no válido' };
+    }
+    
+    if (tokenInfo.needs_refresh) {
+        console.log('⚠️ Token necesita renovación, iniciando proceso automático...');
+        
+        const refreshResult = await refreshToken(accessToken);
+        
+        if (refreshResult.success) {
+            console.log('🎉 Token renovado automáticamente con éxito');
+            return {
+                success: true,
+                action: 'refreshed',
+                old_token: accessToken,
+                new_token: refreshResult.new_token,
+                expires_at: refreshResult.expires_at,
+                extension_days: refreshResult.extension_days
+            };
+        } else {
+            return { success: false, error: refreshResult.error };
+        }
+    } else {
+        console.log('✅ Token aún válido, no necesita renovación');
+        return {
+            success: true,
+            action: 'no_refresh_needed',
+            token: accessToken,
+            expires_at: tokenInfo.expires_at,
+            time_until_expiry_hours: tokenInfo.time_until_expiry_hours
+        };
+    }
+}
+
+// Función para mostrar información de token en la UI
+function displayTokenInfo(tokenInfo, containerId = 'results') {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    
+    const now = new Date();
+    const expiryDate = new Date(tokenInfo.expires_at * 1000);
+    const isExpiringSoon = tokenInfo.time_until_expiry_hours < 24;
+    
+    container.innerHTML = `
+        <div class="${tokenInfo.is_valid ? (isExpiringSoon ? 'warning' : 'success') : 'error'}">
+            <h3>🔑 Información del Token</h3>
+            <p><strong>Estado:</strong> ${tokenInfo.is_valid ? '✅ Válido' : '❌ Inválido'}</p>
+            <p><strong>Tipo:</strong> ${tokenInfo.type}</p>
+            <p><strong>User ID:</strong> ${tokenInfo.user_id}</p>
+            <p><strong>Expira:</strong> ${expiryDate.toLocaleString()}</p>
+            <p><strong>Tiempo restante:</strong> ${tokenInfo.time_until_expiry_hours} horas</p>
+            
+            ${isExpiringSoon && tokenInfo.is_valid ? `
+                <div style="background: #fff3cd; padding: 10px; border-radius: 5px; margin: 10px 0; color: #856404;">
+                    <h5>⚠️ Token Expirando Pronto</h5>
+                    <p>Este token expirará en menos de 24 horas. Se recomienda renovarlo.</p>
+                    <button onclick="handleTokenRefresh('${tokenInfo.user_id}')" class="btn" style="background: #ffc107; color: #212529; padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer;">
+                        🔄 Renovar Token Ahora
+                    </button>
+                </div>
+            ` : ''}
+            
+            ${tokenInfo.scopes ? `
+                <div style="margin-top: 15px;">
+                    <h5>📋 Permisos (Scopes):</h5>
+                    <div style="background: #f8f9fa; padding: 10px; border-radius: 5px; font-family: monospace; font-size: 12px;">
+                        ${tokenInfo.scopes.join(', ')}
+                    </div>
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+// Función para manejar la renovación de token desde la UI
+async function handleTokenRefresh(userId) {
+    console.log('🔄 Iniciando renovación de token desde UI...');
+    
+    // Aquí deberías obtener el token actual del usuario
+    // Por ejemplo, desde localStorage, sessionStorage, o una variable global
+    const currentToken = getCurrentUserToken(userId);
+    
+    if (!currentToken) {
+        alert('❌ No se encontró el token actual para renovar');
+        return;
+    }
+    
+    const refreshResult = await refreshToken(currentToken);
+    
+    if (refreshResult.success) {
+        // Actualizar el token almacenado
+        updateStoredToken(userId, refreshResult.new_token);
+        
+        // Mostrar mensaje de éxito
+        const container = document.getElementById('results');
+        container.innerHTML = `
+            <div class="success">
+                <h3>🎉 Token Renovado Exitosamente</h3>
+                <p><strong>Nuevo token:</strong> ${refreshResult.new_token.substring(0, 30)}...</p>
+                <p><strong>Extensión:</strong> ${refreshResult.extension_days} días adicionales</p>
+                <p><strong>Nueva expiración:</strong> ${new Date(refreshResult.expires_at * 1000).toLocaleString()}</p>
+            </div>
+        `;
+    } else {
+        alert(`❌ Error renovando token: ${refreshResult.error}`);
+    }
+}
+
+// Funciones auxiliares para manejo de tokens (implementar según tu sistema)
+function getCurrentUserToken(userId) {
+    // Implementar según cómo almacenas los tokens
+    // Ejemplo: return localStorage.getItem(`whatsapp_token_${userId}`);
+    console.log('⚠️ getCurrentUserToken no implementado para userId:', userId);
+    return null;
+}
+
+function updateStoredToken(userId, newToken) {
+    // Implementar según cómo almacenas los tokens
+    // Ejemplo: localStorage.setItem(`whatsapp_token_${userId}`, newToken);
+    console.log('⚠️ updateStoredToken no implementado para userId:', userId);
+}
+
+// Función para configurar renovación automática periódica
+function setupAutoTokenRefresh(checkIntervalMinutes = 60) {
+    console.log(`🤖 Configurando verificación automática de tokens cada ${checkIntervalMinutes} minutos`);
+    
+    setInterval(async () => {
+        console.log('🔍 Verificación automática de tokens programada...');
+        
+        // Obtener todos los tokens almacenados
+        const storedTokens = getAllStoredTokens();
+        
+        for (const tokenData of storedTokens) {
+            try {
+                const result = await autoRefreshTokenIfNeeded(tokenData.access_token);
+                
+                if (result.success && result.action === 'refreshed') {
+                    console.log(`✅ Token auto-renovado para usuario ${tokenData.user_id}`);
+                    updateStoredToken(tokenData.user_id, result.new_token);
+                }
+            } catch (error) {
+                console.error(`❌ Error en auto-refresh para usuario ${tokenData.user_id}:`, error);
+            }
+        }
+    }, checkIntervalMinutes * 60 * 1000);
+}
+
+function getAllStoredTokens() {
+    // Implementar según tu sistema de almacenamiento
+    // Ejemplo: obtener todos los tokens de localStorage
+    console.log('⚠️ getAllStoredTokens no implementado');
+    return [];
+}

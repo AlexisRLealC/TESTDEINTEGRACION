@@ -92,7 +92,8 @@ router.post('/exchange-token', async (req, res) => {
     try {
         console.log('🔄 Intercambiando código por token:', code);
         
-        const response = await axios.post('https://graph.facebook.com/v23.0/oauth/access_token', {
+        // Paso 1: Intercambiar código por access token
+        const tokenResponse = await axios.post('https://graph.facebook.com/v23.0/oauth/access_token', {
             client_id: process.env.APP_ID,
             client_secret: process.env.APP_SECRET,
             code: code
@@ -100,15 +101,60 @@ router.post('/exchange-token', async (req, res) => {
         
         console.log('✅ Token intercambiado exitosamente');
         
-        const tokenData = response.data;
+        const tokenData = tokenResponse.data;
+        const accessToken = tokenData.access_token;
         
-        res.json({
-            success: true,
-            message: 'Código intercambiado por token exitosamente',
-            token_data: tokenData,
-            webhook_url: process.env.WEBHOOK_URL,
-            timestamp: new Date().toISOString()
-        });
+        // Paso 2: Suscribir app a webhooks account_update (OBLIGATORIO según Meta docs)
+        console.log('🔗 Suscribiendo app a webhooks account_update...');
+        
+        try {
+            const webhookResponse = await axios.post(
+                `https://graph.facebook.com/v23.0/${process.env.APP_ID}/subscriptions`,
+                {
+                    object: 'whatsapp_business_account',
+                    callback_url: process.env.WEBHOOK_URL,
+                    verify_token: process.env.WEBHOOK_VERIFY_TOKEN,
+                    fields: 'account_update,phone_number_name_update,phone_number_quality_update'
+                },
+                {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+            
+            console.log('✅ Webhooks suscritos exitosamente:', webhookResponse.data);
+            
+            res.json({
+                success: true,
+                message: 'Token intercambiado y webhooks configurados exitosamente',
+                token_data: tokenData,
+                webhook_subscription: webhookResponse.data,
+                webhook_url: process.env.WEBHOOK_URL,
+                next_steps: [
+                    'WhatsApp Business Account configurado',
+                    'Webhooks account_update activos',
+                    'Listo para recibir notificaciones',
+                    'Puede comenzar a enviar mensajes'
+                ],
+                timestamp: new Date().toISOString()
+            });
+            
+        } catch (webhookError) {
+            console.warn('⚠️ Error configurando webhooks (continuando):', webhookError.response?.data || webhookError.message);
+            
+            // Continuar aunque falle la suscripción de webhooks (no crítico para el flujo básico)
+            res.json({
+                success: true,
+                message: 'Token intercambiado exitosamente (webhooks pendientes)',
+                token_data: tokenData,
+                webhook_error: webhookError.response?.data || webhookError.message,
+                webhook_url: process.env.WEBHOOK_URL,
+                warning: 'Webhooks no configurados - configurar manualmente en Meta Developer Console',
+                timestamp: new Date().toISOString()
+            });
+        }
         
     } catch (error) {
         console.error('❌ Error intercambiando código:', error.response?.data || error.message);
@@ -246,7 +292,10 @@ router.get('/status', (req, res) => {
             webhook_post: '/webhook (POST - recibir mensajes)',
             send_message: '/api/send-message',
             configure_webhook: '/api/configure-webhook',
-            status: '/api/status'
+            status: '/api/status',
+            token_info: '/api/token-info/:token',
+            refresh_token: '/api/refresh-token',
+            auto_refresh_check: '/api/auto-refresh-check'
         },
         features: {
             embedded_signup: true,
@@ -254,7 +303,8 @@ router.get('/status', (req, res) => {
             message_receiving: true,
             message_sending: true,
             automatic_webhook_config: true,
-            data_deletion_compliance: true
+            data_deletion_compliance: true,
+            token_management: true
         },
         configuration_status: {
             facebook_sdk: !!process.env.APP_ID,
@@ -350,6 +400,257 @@ router.get('/callback', (req, res) => {
         </body>
         </html>
     `);
+});
+
+// ===================================================================
+// TOKEN MANAGEMENT - Sistema de gestión y renovación automática de tokens
+// ===================================================================
+// Basado en documentación oficial de Facebook:
+// - https://developers.facebook.com/docs/facebook-login/guides/access-tokens
+// - https://developers.facebook.com/docs/facebook-login/guides/access-tokens/get-long-lived
+
+// ENDPOINT: /api/token-info - Verificar información del token
+router.get('/token-info/:token', async (req, res) => {
+    const { token } = req.params;
+    
+    if (!token) {
+        return res.status(400).json({
+            success: false,
+            error: 'Token requerido'
+        });
+    }
+    
+    try {
+        console.log('🔍 Verificando información del token...');
+        
+        // Usar Debug Token API para obtener información
+        const response = await axios.get(`https://graph.facebook.com/debug_token`, {
+            params: {
+                input_token: token,
+                access_token: `${process.env.APP_ID}|${process.env.APP_SECRET}`
+            }
+        });
+        
+        const tokenInfo = response.data.data;
+        const now = Math.floor(Date.now() / 1000);
+        const expiresAt = tokenInfo.expires_at;
+        const timeUntilExpiry = expiresAt - now;
+        
+        console.log('✅ Información del token obtenida:', {
+            valid: tokenInfo.is_valid,
+            expires_at: expiresAt,
+            time_until_expiry: timeUntilExpiry,
+            scopes: tokenInfo.scopes
+        });
+        
+        res.json({
+            success: true,
+            token_info: {
+                is_valid: tokenInfo.is_valid,
+                app_id: tokenInfo.app_id,
+                user_id: tokenInfo.user_id,
+                expires_at: expiresAt,
+                expires_at_formatted: new Date(expiresAt * 1000).toISOString(),
+                time_until_expiry_seconds: timeUntilExpiry,
+                time_until_expiry_hours: Math.floor(timeUntilExpiry / 3600),
+                needs_refresh: timeUntilExpiry < 3600, // Renovar si queda menos de 1 hora
+                scopes: tokenInfo.scopes,
+                type: tokenInfo.type
+            },
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Error verificando token:', error.response?.data || error.message);
+        
+        res.status(500).json({
+            success: false,
+            error: 'Error verificando información del token',
+            details: error.response?.data || error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// ENDPOINT: /api/refresh-token - Renovar token automáticamente
+router.post('/refresh-token', async (req, res) => {
+    const { access_token } = req.body;
+    
+    if (!access_token) {
+        return res.status(400).json({
+            success: false,
+            error: 'access_token requerido'
+        });
+    }
+    
+    try {
+        console.log('🔄 Iniciando renovación de token...');
+        
+        // Paso 1: Verificar estado actual del token
+        const tokenInfoResponse = await axios.get(`https://graph.facebook.com/debug_token`, {
+            params: {
+                input_token: access_token,
+                access_token: `${process.env.APP_ID}|${process.env.APP_SECRET}`
+            }
+        });
+        
+        const currentTokenInfo = tokenInfoResponse.data.data;
+        console.log('📊 Estado actual del token:', {
+            valid: currentTokenInfo.is_valid,
+            expires_at: currentTokenInfo.expires_at,
+            type: currentTokenInfo.type
+        });
+        
+        if (!currentTokenInfo.is_valid) {
+            return res.status(400).json({
+                success: false,
+                error: 'Token actual no es válido',
+                token_info: currentTokenInfo,
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        // Paso 2: Intercambiar por long-lived token
+        console.log('🔄 Intercambiando por long-lived token...');
+        
+        const refreshResponse = await axios.get(`https://graph.facebook.com/oauth/access_token`, {
+            params: {
+                grant_type: 'fb_exchange_token',
+                client_id: process.env.APP_ID,
+                client_secret: process.env.APP_SECRET,
+                fb_exchange_token: access_token
+            }
+        });
+        
+        const newTokenData = refreshResponse.data;
+        console.log('✅ Nuevo token obtenido:', {
+            token_type: newTokenData.token_type,
+            expires_in: newTokenData.expires_in
+        });
+        
+        // Paso 3: Verificar el nuevo token
+        const newTokenInfoResponse = await axios.get(`https://graph.facebook.com/debug_token`, {
+            params: {
+                input_token: newTokenData.access_token,
+                access_token: `${process.env.APP_ID}|${process.env.APP_SECRET}`
+            }
+        });
+        
+        const newTokenInfo = newTokenInfoResponse.data.data;
+        
+        res.json({
+            success: true,
+            message: 'Token renovado exitosamente',
+            old_token_info: {
+                expires_at: currentTokenInfo.expires_at,
+                expires_at_formatted: new Date(currentTokenInfo.expires_at * 1000).toISOString(),
+                type: currentTokenInfo.type
+            },
+            new_token_data: {
+                access_token: newTokenData.access_token,
+                token_type: newTokenData.token_type,
+                expires_in: newTokenData.expires_in,
+                expires_at: newTokenInfo.expires_at,
+                expires_at_formatted: new Date(newTokenInfo.expires_at * 1000).toISOString(),
+                type: newTokenInfo.type,
+                scopes: newTokenInfo.scopes
+            },
+            refresh_summary: {
+                old_expiry: new Date(currentTokenInfo.expires_at * 1000).toISOString(),
+                new_expiry: new Date(newTokenInfo.expires_at * 1000).toISOString(),
+                extension_days: Math.floor((newTokenInfo.expires_at - currentTokenInfo.expires_at) / 86400)
+            },
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Error renovando token:', error.response?.data || error.message);
+        
+        res.status(500).json({
+            success: false,
+            error: 'Error renovando token',
+            details: error.response?.data || error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// ENDPOINT: /api/auto-refresh-check - Verificar si tokens necesitan renovación
+router.post('/auto-refresh-check', async (req, res) => {
+    const { tokens } = req.body; // Array de tokens a verificar
+    
+    if (!tokens || !Array.isArray(tokens)) {
+        return res.status(400).json({
+            success: false,
+            error: 'Array de tokens requerido'
+        });
+    }
+    
+    try {
+        console.log('🔍 Verificando múltiples tokens para auto-refresh...');
+        
+        const results = [];
+        
+        for (const tokenData of tokens) {
+            try {
+                const response = await axios.get(`https://graph.facebook.com/debug_token`, {
+                    params: {
+                        input_token: tokenData.access_token,
+                        access_token: `${process.env.APP_ID}|${process.env.APP_SECRET}`
+                    }
+                });
+                
+                const tokenInfo = response.data.data;
+                const now = Math.floor(Date.now() / 1000);
+                const timeUntilExpiry = tokenInfo.expires_at - now;
+                
+                results.push({
+                    token_id: tokenData.id || 'unknown',
+                    user_id: tokenInfo.user_id,
+                    is_valid: tokenInfo.is_valid,
+                    expires_at: tokenInfo.expires_at,
+                    time_until_expiry_hours: Math.floor(timeUntilExpiry / 3600),
+                    needs_refresh: timeUntilExpiry < 86400, // Renovar si queda menos de 24 horas
+                    is_expired: timeUntilExpiry <= 0,
+                    type: tokenInfo.type
+                });
+                
+            } catch (error) {
+                results.push({
+                    token_id: tokenData.id || 'unknown',
+                    error: 'Token inválido o error de verificación',
+                    details: error.response?.data || error.message
+                });
+            }
+        }
+        
+        const needsRefresh = results.filter(r => r.needs_refresh && !r.is_expired);
+        const expired = results.filter(r => r.is_expired);
+        
+        res.json({
+            success: true,
+            summary: {
+                total_tokens: tokens.length,
+                valid_tokens: results.filter(r => r.is_valid).length,
+                needs_refresh: needsRefresh.length,
+                expired: expired.length
+            },
+            tokens_needing_refresh: needsRefresh,
+            expired_tokens: expired,
+            all_results: results,
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Error en auto-refresh-check:', error);
+        
+        res.status(500).json({
+            success: false,
+            error: 'Error verificando tokens',
+            details: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
 });
 
 // ===================================================================

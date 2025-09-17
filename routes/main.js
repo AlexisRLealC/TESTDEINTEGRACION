@@ -75,6 +75,39 @@ router.get('/', (req, res) => {
         loadFacebookSDK()
             .then(() => {
                 console.log('🎯 SDK listo para inicializar');
+                
+                // Inicializar Facebook SDK (OBLIGATORIO)
+                if (window.FB && '${APP_ID}') {
+                    window.FB.init({
+                        appId: '${APP_ID}',
+                        cookie: true,
+                        xfbml: true,
+                        version: 'v23.0'
+                    });
+                    
+                    console.log('✅ Facebook SDK inicializado correctamente');
+                    
+                    // Actualizar estado del SDK
+                    const statusDiv = document.getElementById('sdk-status');
+                    if (statusDiv) {
+                        statusDiv.className = 'sdk-status sdk-ready';
+                        statusDiv.innerHTML = '✅ Facebook SDK listo';
+                    }
+                    
+                    // Habilitar botón de WhatsApp si está configurado
+                    const signupBtn = document.getElementById('whatsapp-signup-btn');
+                    if (signupBtn && '${CONFIGURATION_ID}') {
+                        signupBtn.disabled = false;
+                        signupBtn.innerHTML = '📱 Conectar WhatsApp Business';
+                    }
+                } else {
+                    console.error('❌ No se puede inicializar SDK: APP_ID no disponible');
+                    const statusDiv = document.getElementById('sdk-status');
+                    if (statusDiv) {
+                        statusDiv.className = 'sdk-status sdk-error';
+                        statusDiv.innerHTML = '❌ Error: APP_ID no configurado';
+                    }
+                }
             })
             .catch((error) => {
                 console.error('❌ Error cargando Facebook SDK:', error.message);
@@ -158,7 +191,7 @@ router.get('/', (req, res) => {
         </div>
 
         <div style="margin: 30px 0; text-align: center;">
-            <button id="whatsapp-signup-btn" class="btn whatsapp-btn" disabled>
+            <button id="whatsapp-signup-btn" class="btn whatsapp-btn" ${!APP_ID || !CONFIGURATION_ID ? 'disabled' : ''}>
                 📱 Conectar WhatsApp Business
             </button>
             <br>
@@ -170,9 +203,9 @@ router.get('/', (req, res) => {
                 📱 Probar Messenger API
             </a>
             <br>
-            <a href="/whatsapp-messenger/test" class="btn" style="background: #25d366; text-decoration: none;">
+            <button onclick="openWhatsAppTester()" class="btn" style="background: #25d366;">
                 💬 Probar WhatsApp API
-            </a>
+            </button>
             <br>
             <button onclick="launchTiendaNube()" class="btn tiendanube-btn">
                 🛍️ Conectar Tienda Nube
