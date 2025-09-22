@@ -1,11 +1,18 @@
 const express = require('express');
 const axios = require('axios');
+const config = require('../src/config');
 const router = express.Router();
 
-// Variables de entorno para Tienda Nube
-const TIENDANUBE_CLIENT_ID = process.env.TIENDANUBE_CLIENT_ID;
-const TIENDANUBE_CLIENT_SECRET = process.env.TIENDANUBE_CLIENT_SECRET;
-const TIENDANUBE_REDIRECT_URI = process.env.TIENDANUBE_REDIRECT_URI || `http://localhost:${process.env.PORT || 3000}/tiendanube/callback`;
+// Variables de entorno para Tienda Nube usando configuración centralizada
+const TIENDANUBE_CLIENT_ID = config.tiendanube.clientId;
+const TIENDANUBE_CLIENT_SECRET = config.tiendanube.clientSecret;
+const TIENDANUBE_REDIRECT_URI = config.tiendanube.redirectUri;
+
+// Debug: Verificar que las variables se carguen correctamente
+console.log('🔍 Debug - Variables de entorno Tienda Nube:');
+console.log('CLIENT_ID:', TIENDANUBE_CLIENT_ID ? `${TIENDANUBE_CLIENT_ID} (${TIENDANUBE_CLIENT_ID.length} chars)` : 'NO CONFIGURADO');
+console.log('CLIENT_SECRET:', TIENDANUBE_CLIENT_SECRET ? `${TIENDANUBE_CLIENT_SECRET.substring(0, 10)}... (${TIENDANUBE_CLIENT_SECRET.length} chars)` : 'NO CONFIGURADO');
+console.log('REDIRECT_URI:', TIENDANUBE_REDIRECT_URI);
 
 // ===================================================================
 // TIENDA NUBE OAUTH - Iniciar flujo de autorización
@@ -20,21 +27,14 @@ router.get('/auth', (req, res) => {
         });
     }
     
-    // Generar estado único para seguridad CSRF
-    const state = 'tn_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    // Para aplicaciones privadas, usar la URL directa de instalación
+    // Según documentación: https://www.tiendanube.com/apps/{app_id}/authorize
+    const authUrl = `https://www.tiendanube.com/apps/${TIENDANUBE_CLIENT_ID}/authorize`;
     
-    // URL de autorización de Tienda Nube
-    const authUrl = new URL('https://www.tiendanube.com/apps/authorize/auth');
-    authUrl.searchParams.append('client_id', TIENDANUBE_CLIENT_ID);
-    authUrl.searchParams.append('response_type', 'code');
-    authUrl.searchParams.append('state', state);
-    authUrl.searchParams.append('redirect_uri', TIENDANUBE_REDIRECT_URI);
+    console.log('🔗 URL de autorización generada:', authUrl);
+    console.log('� Tipo de aplicación: Privada (Para tus clientes)');
     
-    console.log('🔗 URL de autorización generada:', authUrl.toString());
-    console.log('🔐 Estado CSRF:', state);
-    
-    // Redirigir al usuario a Tienda Nube para autorización
-    res.redirect(authUrl.toString());
+    res.redirect(authUrl);
 });
 
 // ===================================================================
@@ -103,18 +103,35 @@ router.get('/callback', async (req, res) => {
     // Intercambiar código por access_token
     try {
         console.log('🔄 Intercambiando código por access_token...');
-        
-        const tokenResponse = await axios.post('https://www.tiendanube.com/apps/authorize/token', {
+        console.log('📋 Parámetros de intercambio:', {
             client_id: TIENDANUBE_CLIENT_ID,
-            client_secret: TIENDANUBE_CLIENT_SECRET,
             grant_type: 'authorization_code',
-            code: code
-        }, {
+            code: code.substring(0, 20) + '...'
+        });
+        
+        console.log('🔍 Valores exactos para debug:');
+        console.log('  - CLIENT_ID type:', typeof TIENDANUBE_CLIENT_ID);
+        console.log('  - CLIENT_ID value:', TIENDANUBE_CLIENT_ID);
+        console.log('  - CLIENT_SECRET type:', typeof TIENDANUBE_CLIENT_SECRET);
+        console.log('  - CLIENT_SECRET length:', TIENDANUBE_CLIENT_SECRET ? TIENDANUBE_CLIENT_SECRET.length : 'undefined');
+        console.log('  - REDIRECT_URI:', TIENDANUBE_REDIRECT_URI);
+        
+        // Crear parámetros como URLSearchParams para application/x-www-form-urlencoded
+        const params = new URLSearchParams();
+        params.append('client_id', TIENDANUBE_CLIENT_ID);
+        params.append('client_secret', TIENDANUBE_CLIENT_SECRET);
+        params.append('grant_type', 'authorization_code');
+        params.append('code', code);
+        
+        console.log('📤 Parámetros finales enviados:', params.toString());
+        
+        const tokenResponse = await axios.post('https://www.tiendanube.com/apps/authorize/token', params, {
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/x-www-form-urlencoded'
             }
         });
         
+        console.log('🔍 Respuesta completa del servidor:', tokenResponse.data);
         console.log('✅ Token intercambiado exitosamente:', {
             access_token: tokenResponse.data.access_token ? 'Recibido' : 'No recibido',
             user_id: tokenResponse.data.user_id,
@@ -123,6 +140,9 @@ router.get('/callback', async (req, res) => {
         });
         
         const { access_token, user_id, store_id, scope, token_type } = tokenResponse.data;
+        
+        // Obtener información de la tienda
+        const storeInfo = await getStoreInfo(access_token, user_id);
         
         // Mostrar el access_token y user_id al usuario
         res.send(`
@@ -181,6 +201,37 @@ Headers:
                                 <li><strong>User ID:</strong> Es el ID de la tienda para hacer requests a la API</li>
                                 <li><strong>Header correcto:</strong> "Authentication" (no "Authorization")</li>
                             </ul>
+                        </div>
+                        
+                        <h3>🏪 Información de la Tienda:</h3>
+                        <div class="json-display">
+${storeInfo ? `
+<strong>ID:</strong>
+${storeInfo.id}
+
+<strong>Nombre:</strong>
+${storeInfo.name}
+
+<strong>Dominio Original:</strong>
+${storeInfo.original_domain}
+
+<strong>Dominios:</strong>
+${storeInfo.domains.join(', ')}
+
+<strong>Idioma Principal:</strong>
+${storeInfo.main_language}
+
+<strong>Moneda Principal:</strong>
+${storeInfo.main_currency}
+
+<strong>País:</strong>
+${storeInfo.country}
+
+<strong>Plan:</strong>
+${storeInfo.plan_name}
+` : `
+<strong>No se pudo obtener información de la tienda.</strong>
+`}
                         </div>
                         
                         <a href="/" class="btn">🏠 Volver al Inicio</a>
@@ -243,6 +294,38 @@ Headers:
         `);
     }
 });
+
+// Función para obtener información de la tienda
+async function getStoreInfo(accessToken, userId) {
+    try {
+        console.log('🏪 Obteniendo información de la tienda...');
+        
+        const response = await axios.get(`https://api.tiendanube.com/v1/${userId}/store`, {
+            headers: {
+                'Authentication': `bearer ${accessToken}`,
+                'User-Agent': 'TiendaNube-Integration (integration@example.com)'
+            }
+        });
+        
+        const storeData = response.data;
+        console.log('✅ Información de la tienda obtenida exitosamente');
+        console.log('📊 Datos de la tienda:', {
+            id: storeData.id,
+            name: storeData.name,
+            original_domain: storeData.original_domain,
+            domains: storeData.domains,
+            main_language: storeData.main_language,
+            main_currency: storeData.main_currency,
+            country: storeData.country,
+            plan_name: storeData.plan_name
+        });
+        
+        return storeData;
+    } catch (error) {
+        console.error('❌ Error obteniendo información de la tienda:', error.response?.data || error.message);
+        return null;
+    }
+}
 
 // ===================================================================
 // TIENDA NUBE WEBHOOK - Manejar eventos de la tienda
@@ -399,7 +482,7 @@ router.get('/config', (req, res) => {
         client_id: TIENDANUBE_CLIENT_ID ? 'Configurado' : 'No configurado',
         client_secret: TIENDANUBE_CLIENT_SECRET ? 'Configurado' : 'No configurado',
         redirect_uri: TIENDANUBE_REDIRECT_URI,
-        auth_url: `https://www.tiendanube.com/apps/authorize/auth`,
+        auth_url: `https://www.tiendanube.com/apps/${TIENDANUBE_CLIENT_ID}/authorize`,
         token_url: `https://www.tiendanube.com/apps/authorize/token`
     });
 });
